@@ -68,6 +68,12 @@ public final class Tv {
     private static final long SOURCE_JOYSTICK = 0x01000010L;
     private static final Pattern INPUT_DEVICE = Pattern.compile("^\\s*Device -?\\d+: (.+)$");
     private static final Pattern INPUT_SOURCES = Pattern.compile("^\\s*Sources: 0x([0-9a-fA-F]+)");
+    // Защищённый DNS (DNS-over-TLS): провайдер не может подменить ответы, как с обычным DNS.
+    private static final String[] PRIVATE_DNS = {
+            "dns.google", "one.one.one.one", "dns.quad9.net", "dns.adguard-dns.com"};
+    private static final String[] YOUTUBE_HOSTS = {"www.youtube.com", "youtubei.googleapis.com", "i.ytimg.com"};
+    private static final String CONTROL_HOST = "ya.ru";  // если не находится и он — DNS недоступен совсем
+    private static final int DNS_CHECK_ATTEMPTS = 6;
 
     private final AdbClient adb;
     private final Store store;
@@ -739,7 +745,65 @@ public final class Tv {
         if (has("resolution")) {
             resetResolution();
         }
+        if (has("dns_backup")) {
+            restoreDns();
+        }
         log.line("Всё возвращено. Перезагрузите ТВ.");
+    }
+
+    // ---------- защищённый DNS ----------
+
+    /** Находит ли ТВ адрес сайта. ping печатает «PING host (IP)», как только адрес найден, даже без ответа. */
+    boolean resolves(String host) throws IOException {
+        return Pattern.compile("PING \\S+ \\(\\d+\\.\\d+\\.\\d+\\.\\d+\\)").matcher(sh("ping -c 1 -W 2 " + host)).find();
+    }
+
+    private boolean resolvesAll(String... hosts) throws IOException {
+        for (String host : hosts) {
+            if (!resolves(host)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Включает DNS-over-TLS, перебирая серверы. Если ни один не помог — возвращает прежнюю настройку. */
+    public boolean secureDns() throws IOException {
+        if (!has("dns_backup")) {
+            store.put("dns_backup", sh("settings get global private_dns_mode") + "|"
+                    + sh("settings get global private_dns_specifier"));
+        }
+        for (String server : PRIVATE_DNS) {
+            log.line("Пробую защищённый DNS " + server + "...");
+            sh("settings put global private_dns_specifier " + server);
+            sh("settings put global private_dns_mode hostname");
+            // Телевизору нужно несколько секунд, чтобы установить защищённое соединение с сервером.
+            for (int attempt = 0; attempt < DNS_CHECK_ATTEMPTS; attempt++) {
+                pause(2500);
+                if (resolvesAll(CONTROL_HOST) && resolvesAll(YOUTUBE_HOSTS)) {
+                    log.line("  ✓ YouTube находится через " + server + ". Перезапустите SmartTube.");
+                    log.line("Если интернет на ТВ пропадёт — нажмите «Обычный DNS».");
+                    return true;
+                }
+            }
+            log.line("  ✗ " + server + " не помог");
+        }
+        restoreDns();
+        log.line("Ни один защищённый DNS не сработал — похоже, провайдер блокирует и их.");
+        return false;
+    }
+
+    public void restoreDns() throws IOException {
+        String backup = store.get("dns_backup");
+        String[] old = (backup == null ? "null|null" : backup).split("\\|", -1);
+        String[] keys = {"private_dns_mode", "private_dns_specifier"};
+        for (int i = 0; i < keys.length; i++) {
+            String v = i < old.length ? old[i] : "null";
+            sh(v.isEmpty() || v.equals("null") ? "settings delete global " + keys[i]
+                    : "settings put global " + keys[i] + " " + v);
+        }
+        store.put("dns_backup", "");
+        log.line("DNS возвращён к обычной настройке.");
     }
 
     public void reboot() {

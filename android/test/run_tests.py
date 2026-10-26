@@ -69,7 +69,9 @@ def main():
     check(any("'/storage/1234-ABCD/apk/SmartTube Beta.apk'" in c for c in installs), "путь с пробелом экранирован")
     check(tv.split_installs == [["0_base.apk", "1_split_config.armeabi_v7a.apk", "2_split_config.xhdpi.apk"]],
           f"архив .apkm поставлен одной сессией без части для чужого процессора: {tv.split_installs}")
-    check("✗" not in log.split("Установка ByeByeDPI")[1].split("VPN")[0] if "Установка ByeByeDPI" in log else False,
+    install_log = log.split("Установка ByeByeDPI")[1].split("Обход блокировок будет запускаться")[0] \
+        if "Установка ByeByeDPI" in log else "✗"
+    check("✗" not in install_log and install_log.count("✓ установлено") == 3,
           "все установки с флешки прошли успешно")
     check(not any("readme.txt" in c for c in tv.log), "посторонние файлы на флешке не трогаются")
     check("VPN io.github.romanvht.byedpi" in out, "найден установленный ByeDPI")
@@ -82,6 +84,11 @@ def main():
           and "com.spocky.projengmenu" not in tv.stopped and "com.yandex.tv.home" not in tv.stopped,
           f"закрыты лишние приложения, Moonlight, Projectivy и главный экран не тронуты: {sorted(tv.stopped)}")
     check("GAMEOFF io.github.romanvht.byedpi" in out and "GAMEOFF2 null" in out, "выход из игрового режима возвращает ByeDPI один раз")
+    check("DNS true" in out and "✗ dns.google не помог" in log and "✓ YouTube находится через one.one.one.one" in log,
+          "защищённый DNS: заблокированный сервер пропущен, выбран рабочий")
+    check("dns_backup=null|null" in out, "прежняя настройка DNS сохранена для отката")
+    check("global/private_dns_mode" not in tv.settings and "global/private_dns_specifier" not in tv.settings,
+          "после отката DNS вернулся к заводскому")
     check("anim=" in out and "resolution=1" in out and "disabled=com.vendor.ads," in out, "изменения сохранены для отката")
     check(tv.pkgs["com.vendor.ads"][1] == 0, "после отката реклама снова включена")
     check(tv.appops.get("com.amediateka.tv/RUN_ANY_IN_BACKGROUND") == "default", "после отката фон разрешён")

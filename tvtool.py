@@ -23,6 +23,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 STATE_FILE = os.path.join(HERE, "state", "disabled.json")
 MY_PACKAGES = os.path.join(HERE, "my_packages.txt")
 APK_DIR = os.path.join(HERE, "apk")
+# Защищённый DNS (DNS-over-TLS): провайдер не может подменить ответы, как с обычным DNS.
+PRIVATE_DNS = ("dns.google", "one.one.one.one", "dns.quad9.net", "dns.adguard-dns.com")
+YOUTUBE_HOSTS = ("www.youtube.com", "youtubei.googleapis.com", "i.ytimg.com")
+CONTROL_HOST = "ya.ru"  # если не находится и он — DNS недоступен совсем
 BUNDLES = (".apkm", ".apks", ".xapk")  # архивы из нескольких APK (split APK)
 INSTALLABLE = (".apk",) + BUNDLES
 ADB_PORT = 5555
@@ -485,6 +489,10 @@ def cmd_restore(a):
     restore_animations(s)
     if dev.get("resolution"):
         reset_resolution(s)
+    if dev.get("dns_backup"):
+        state = load_state()
+        restore_dns(s, device_state(state, s).pop("dns_backup"))
+        save_state(state)
     print("Готово. Перезагрузите ТВ: python tvtool.py reboot")
 
 
@@ -687,6 +695,46 @@ def cmd_game(a):
     launch(s, moonlight)
 
 
+def resolves(serial, host):
+    """ping печатает «PING host (IP)», как только адрес найден, даже если ответа нет."""
+    return re.search(r"PING \S+ \(\d+\.\d+\.\d+\.\d+\)", shell(serial, f"ping -c 1 -W 2 {host}", check=False))
+
+
+def restore_dns(serial, backup):
+    for key, value in zip(("private_dns_mode", "private_dns_specifier"), (backup or "null|null").split("|")):
+        shell(serial, f"settings delete global {key}" if value in ("", "null")
+              else f"settings put global {key} {value}", check=False)
+    print("DNS возвращён к обычной настройке.")
+
+
+def cmd_dns(a):
+    s = pick_device(a.serial)
+    state = load_state()
+    dev = device_state(state, s)
+    if a.off:
+        restore_dns(s, dev.pop("dns_backup", None))
+        save_state(state)
+        return
+    if "dns_backup" not in dev:
+        dev["dns_backup"] = "|".join(shell(s, f"settings get global {k}", check=False)
+                                     for k in ("private_dns_mode", "private_dns_specifier"))
+        save_state(state)
+    for server in PRIVATE_DNS:
+        print(f"Пробую защищённый DNS {server}...")
+        shell(s, f"settings put global private_dns_specifier {server}")
+        shell(s, "settings put global private_dns_mode hostname")
+        for _ in range(6):  # ТВ нужно несколько секунд, чтобы установить защищённое соединение
+            time.sleep(2.5)
+            if all(resolves(s, h) for h in (CONTROL_HOST, *YOUTUBE_HOSTS)):
+                print(f"  ✓ YouTube находится через {server}. Перезапустите SmartTube.")
+                print("Если интернет на ТВ пропадёт: python tvtool.py dns --off")
+                return
+        print(f"  ✗ {server} не помог")
+    restore_dns(s, dev.pop("dns_backup"))
+    save_state(state)
+    print("Ни один защищённый DNS не сработал — похоже, провайдер блокирует и их.")
+
+
 def cmd_reboot(a):
     adb("reboot", serial=pick_device(a.serial))
     print("Телевизор перезагружается.")
@@ -753,6 +801,10 @@ def main(argv=None):
     c.add_argument("--off", action="store_true", help="убрать автозапуск")
     c.set_defaults(func=cmd_vpn)
 
+    c = sub.add_parser("dns", help="защищённый DNS, если YouTube не находится (подмена DNS провайдером)")
+    c.add_argument("--off", action="store_true", help="вернуть обычный DNS")
+    c.set_defaults(func=cmd_dns)
+
     c = sub.add_parser("game", help="игровой режим: подготовить ТВ и запустить Moonlight")
     c.add_argument("--off", action="store_true", help="выйти из игрового режима (вернуть обход блокировок)")
     c.set_defaults(func=cmd_game)
@@ -776,6 +828,8 @@ MENU = (
     ("Вернуть всё как было", ["restore"]),
     ("Игровой режим (Moonlight)", ["game"]),
     ("Выйти из игрового режима", ["game", "--off"]),
+    ("Защищённый DNS (если YouTube не грузится)", ["dns"]),
+    ("Обычный DNS", ["dns", "--off"]),
 )
 
 

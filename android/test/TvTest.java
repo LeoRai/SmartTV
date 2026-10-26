@@ -60,6 +60,7 @@ public class TvTest {
         System.out.println("GAME " + tv.gameMode());
         System.out.println("GAMEOFF " + tv.gameModeOff());
         System.out.println("GAMEOFF2 " + tv.gameModeOff());
+        System.out.println("DNS " + tv.secureDns());
         tv.resolution720();
         System.out.println("STORE " + new java.util.TreeMap<>(store));
         tv.restore();

@@ -66,6 +66,7 @@ class FakeTv:
         self.appops, self.wm, self.log = {}, {}, []
         self.killed = False
         self.stopped = set()
+        self.dot_blocked = {"dns.google"}
         bundle = io.BytesIO()
         with zipfile.ZipFile(bundle, "w") as z:  # так устроен .apkm с APKMirror
             for name in ("base.apk", "split_config.armeabi_v7a.apk", "split_config.arm64_v8a.apk",
@@ -189,6 +190,15 @@ class FakeTv:
             return ""
         if c in ("pm trim-caches 999G", "cmd package bg-dexopt-job"):
             return ""
+        if c.startswith("ping "):
+            # Провайдер подменяет обычный DNS для YouTube; DNS-over-TLS к dns.google заблокирован.
+            host = w[-1]
+            private = self.settings.get("global/private_dns_specifier") \
+                if self.settings.get("global/private_dns_mode") == "hostname" else None
+            ok = private not in self.dot_blocked if private else not any(
+                y in host for y in ("youtube", "ytimg", "googleapis"))
+            return (f"PING {host} (142.250.74.14) 56(84) bytes of data.\n\n--- {host} ping statistics ---\n"
+                    "1 packets transmitted, 0 received, 100% packet loss, time 0ms\n") if ok else f"ping: unknown host {host}\n"
         if c.startswith("pidof"):
             return "4321\n" if w[1] in self.pkgs and w[1] not in self.stopped else ""
         if c == "dumpsys input":

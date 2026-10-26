@@ -179,6 +179,28 @@ public class MainActivity extends Activity {
                 });
             }
         });
+        addButton(menu, "Защищённый DNS (если YouTube не грузится)", new Runnable() {
+            @Override
+            public void run() {
+                start("Защищённый DNS", new Job() {
+                    @Override
+                    public void run(Tv tv) throws Exception {
+                        tv.secureDns();
+                    }
+                });
+            }
+        });
+        addButton(menu, "Обычный DNS", new Runnable() {
+            @Override
+            public void run() {
+                start("Обычный DNS", new Job() {
+                    @Override
+                    public void run(Tv tv) throws Exception {
+                        tv.restoreDns();
+                    }
+                });
+            }
+        });
         addButton(menu, "Диагностика", new Runnable() {
             @Override
             public void run() {
