@@ -2,3 +2,6 @@ state/
 my_packages.txt
 __pycache__/
 *.apk
+!dist/TVTuner.apk
+android/.cache/
+android/build/
