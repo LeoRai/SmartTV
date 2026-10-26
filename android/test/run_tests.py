@@ -67,6 +67,11 @@ def main():
     installs = [c for c in tv.log if "pm install" in c]
     check(len(installs) == 2 and not any("TVTuner" in c for c in installs), "с флешки ставятся APK, кроме самого установщика")
     check(any("'/storage/1234-ABCD/apk/SmartTube Beta.apk'" in c for c in installs), "путь с пробелом экранирован")
+    check(tv.split_installs == [["0_base.apk", "1_split_config.armeabi_v7a.apk", "2_split_config.xhdpi.apk"]],
+          f"архив .apkm поставлен одной сессией без части для чужого процессора: {tv.split_installs}")
+    check("✗" not in log.split("Установка ByeByeDPI")[1].split("VPN")[0] if "Установка ByeByeDPI" in log else False,
+          "все установки с флешки прошли успешно")
+    check(not any("readme.txt" in c for c in tv.log), "посторонние файлы на флешке не трогаются")
     check("VPN io.github.romanvht.byedpi" in out, "найден установленный ByeDPI")
     check("anim=" in out and "resolution=1" in out and "disabled=com.vendor.ads," in out, "изменения сохранены для отката")
     check(tv.pkgs["com.vendor.ads"][1] == 0, "после отката реклама снова включена")

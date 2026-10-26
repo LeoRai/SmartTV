@@ -15,12 +15,16 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
+import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATE_FILE = os.path.join(HERE, "state", "disabled.json")
 MY_PACKAGES = os.path.join(HERE, "my_packages.txt")
 APK_DIR = os.path.join(HERE, "apk")
+BUNDLES = (".apkm", ".apks", ".xapk")  # архивы из нескольких APK (split APK)
+INSTALLABLE = (".apk",) + BUNDLES
 ADB_PORT = 5555
 MIN_FREE_MB_FOR_COMPILE = 500
 
@@ -538,15 +542,39 @@ def cmd_install(a):
         os.makedirs(APK_DIR, exist_ok=True)
     apks = []
     for path in a.apks or [APK_DIR]:
-        apks += sorted(glob.glob(os.path.join(path, "*.apk"))) if os.path.isdir(path) else [path]
+        apks += sorted(f for f in glob.glob(os.path.join(path, "*")) if f.lower().endswith(INSTALLABLE)
+                       ) if os.path.isdir(path) else [path]
     if not apks:
         die(f"APK-файлы не найдены. Положите их в папку {APK_DIR}")
     for apk in apks:
         if not os.path.isfile(apk):
             print(f"  FAIL {apk}: файл не найден")
             continue
-        out = adb("install", "-r", apk, serial=s, check=False)
+        if apk.lower().endswith(BUNDLES):
+            out = install_bundle(s, apk)
+        else:
+            out = adb("install", "-r", apk, serial=s, check=False)
         print(f"  {'OK  ' if 'Success' in out else 'FAIL'} {os.path.basename(apk)}: {out.splitlines()[-1] if out else ''}")
+
+
+def install_bundle(serial, path):
+    """Архив из нескольких APK (.apkm с APKMirror, .apks, .xapk) ставим как adb install-multiple."""
+    abis = {x.strip().replace("-", "_") for x in shell(serial, "getprop ro.product.cpu.abilist", check=False).split(",")}
+    known = ("arm64_v8a", "armeabi_v7a", "armeabi", "x86_64", "x86")
+    with tempfile.TemporaryDirectory() as tmp, zipfile.ZipFile(path) as z:
+        parts = []
+        for name in z.namelist():
+            base = os.path.basename(name)
+            abi = next((k for k in known if f"config.{k}." in base or base == f"{k}.apk"), None)
+            if not base.endswith(".apk") or (abi and "" not in abis and abi not in abis):
+                continue  # части для чужого процессора ТВ не нужны
+            target = os.path.join(tmp, f"{len(parts)}_{base}")
+            with open(target, "wb") as f:
+                f.write(z.read(name))
+            parts.append(target)
+        if not parts:
+            return "в архиве нет APK (файл повреждён или зашифрован)"
+        return adb("install-multiple", "-r", *parts, serial=serial, check=False)
 
 
 def cmd_vpn(a):

@@ -6,11 +6,13 @@
 """
 
 import base64
+import io
 import os
 import re
 import socket
 import struct
 import threading
+import zipfile
 
 A_CNXN, A_AUTH, A_OPEN, A_OKAY, A_CLSE, A_WRTE = 0x4e584e43, 0x48545541, 0x4e45504f, 0x59414b4f, 0x45534c43, 0x45545257
 SHA1_PREFIX = bytes.fromhex("3021300906052b0e03021a05000414")
@@ -62,15 +64,37 @@ class FakeTv:
                          "global/animator_duration_scale": "1.0"}
         self.appops, self.wm, self.log = {}, {}, []
         self.killed = False
+        bundle = io.BytesIO()
+        with zipfile.ZipFile(bundle, "w") as z:  # так устроен .apkm с APKMirror
+            for name in ("base.apk", "split_config.armeabi_v7a.apk", "split_config.arm64_v8a.apk",
+                         "split_config.xhdpi.apk"):
+                z.writestr(name, os.urandom(6000) + name.encode())
+            z.writestr("info.json", "{}")
+            z.writestr("icon.png", b"png")
+        self.files = {"/storage/1234-ABCD/apk/Projectivy Launcher.apkm": bundle.getvalue()}
         self.usb = ["/storage/1234-ABCD/apk/ByeByeDPI.apk", "/storage/1234-ABCD/apk/SmartTube Beta.apk",
-                    "/storage/1234-ABCD/apk/TVTuner.apk"]
+                    "/storage/1234-ABCD/apk/TVTuner.apk", "/storage/1234-ABCD/apk/readme.txt",
+                    *self.files]
+        self.sessions, self.split_installs = {}, []
+
+    def exec(self, c, stdin):
+        """Сервис exec: двоичный вывод и, для install-write, данные из stdin."""
+        self.log.append("exec:" + c)
+        m = re.match(r"cat '(.+)'$", c)
+        if m:
+            return self.files[m.group(1)]
+        m = re.match(r"cmd package install-write -S (\d+) (\d+) (\S+) -$", c)
+        if m and int(m.group(1)) == len(stdin) and m.group(2) in self.sessions:
+            self.sessions[m.group(2)]["parts"][m.group(3)] = stdin
+            return f"Success: streamed {len(stdin)} bytes\n".encode()
+        return b"Error: bad exec\n"
 
     def shell(self, c):
         self.log.append(c)
         w = c.split()
         if c.startswith("getprop"):
             return {"ro.product.model": "SMART-TV-43", "ro.product.manufacturer": "TEST",
-                    "ro.build.version.release": "9"}.get(w[1], "") + "\n"
+                    "ro.build.version.release": "9", "ro.product.cpu.abilist": "armeabi-v7a,armeabi"}.get(w[1], "") + "\n"
         if "resolve-activity" in c:
             return "priority=0 preferredOrder=0\ncom.yandex.tv.home/.HomeActivity\n"
         if w[0] == "settings":
@@ -131,7 +155,25 @@ class FakeTv:
             return ""
         if c.startswith("cmd package compile"):
             return "Success\n" if w[-1] in self.pkgs else "Failure: package not found\n"
-        if c.startswith("for f in /storage/*/apk/*.apk"):
+        m = re.match(r"cmd package install-create -r -S (\d+)$", c)
+        if m:
+            sid = str(77 + len(self.sessions))
+            self.sessions[sid] = {"total": int(m.group(1)), "parts": {}}
+            return f"Success: created install session [{sid}]\n"
+        m = re.match(r"cmd package install-(commit|abandon) (\d+)$", c)
+        if m:
+            session = self.sessions.pop(m.group(2))
+            if m.group(1) == "abandon":
+                return "Success\n"
+            if sum(map(len, session["parts"].values())) != session["total"]:
+                return "Failure [INSTALL_FAILED_INVALID_APK: size mismatch]\n"
+            with zipfile.ZipFile(io.BytesIO(next(iter(self.files.values())))) as z:
+                if any(z.read(name.split("_", 1)[1]) != data for name, data in session["parts"].items()):
+                    return "Failure [INSTALL_FAILED_INVALID_APK: corrupted split]\n"
+            self.split_installs.append(sorted(session["parts"]))
+            self.pkgs["com.spocky.projengmenu"] = [0, 0, 1]
+            return "Success\n"
+        if c.startswith("for f in /storage/*/apk/*;"):
             return "".join(p + "\n" for p in self.usb)
         m = re.match(r"cp '(.+)' (\S+) && pm install -r \2; rm -f \2$", c)
         if m:
@@ -214,7 +256,19 @@ class FakeAdbd:
                     conn.close()
                     return
                 self._send(conn, A_OKAY, remote, local)
-                out = self.tv.shell(service[len("shell:"):]).encode()
+                kind, _, command = service.partition(":")
+                if kind == "exec":
+                    stdin = b""
+                    size = re.search(r"install-write -S (\d+)", command)
+                    while size and len(stdin) < int(size.group(1)):
+                        cmd, a0, a1, data = self._read(f)
+                        assert (cmd, a0, a1) == (A_WRTE, local, remote), "ждём данные stdin"
+                        assert len(data) <= CHUNK, "пакет больше согласованного размера"
+                        stdin += data
+                        self._send(conn, A_OKAY, remote, local)
+                    out = self.tv.exec(command, stdin)
+                else:
+                    out = self.tv.shell(command).encode()
                 for i in range(0, len(out), CHUNK):
                     self._send(conn, A_WRTE, remote, local, out[i:i + CHUNK])
                     cmd, a0, a1, _ = self._read(f)

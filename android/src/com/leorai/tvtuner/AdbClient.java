@@ -120,17 +120,35 @@ public final class AdbClient implements Closeable {
     }
 
     public synchronized String service(String name) throws IOException {
+        return new String(open(name, null), StandardCharsets.UTF_8);
+    }
+
+    /** Команда без обработки вывода: двоичные данные туда (stdin) и обратно (stdout), как у adb install. */
+    public synchronized byte[] exec(String command, byte[] input) throws IOException {
+        return open("exec:" + command, input);
+    }
+
+    private byte[] open(String name, byte[] input) throws IOException {
         int localId = nextLocalId++;
         send(A_OPEN, localId, 0, (name + "\0").getBytes(StandardCharsets.UTF_8));
         ByteArrayOutputStream result = new ByteArrayOutputStream();
         int remoteId = 0;
+        int sent = 0;
         while (true) {
             Message m = read();
             if (m.arg1 != localId) {
                 continue;  // хвосты прошлых потоков
             }
             if (m.command == A_OKAY) {
+                // Первый OKAY подтверждает открытие потока, следующие — наши пакеты данных.
                 remoteId = m.arg0;
+                if (input != null && sent < input.length) {
+                    int n = Math.min(MAX_PAYLOAD, input.length - sent);
+                    byte[] part = new byte[n];
+                    System.arraycopy(input, sent, part, 0, n);
+                    send(A_WRTE, localId, remoteId, part);
+                    sent += n;
+                }
             } else if (m.command == A_WRTE) {
                 remoteId = m.arg0;
                 result.write(m.data);
@@ -139,7 +157,7 @@ public final class AdbClient implements Closeable {
                 if (remoteId != 0) {
                     send(A_CLSE, localId, remoteId, new byte[0]);
                 }
-                return new String(result.toByteArray(), StandardCharsets.UTF_8);
+                return result.toByteArray();
             }
         }
     }

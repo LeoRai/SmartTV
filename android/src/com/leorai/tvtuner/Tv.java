@@ -1,6 +1,9 @@
 package com.leorai.tvtuner;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -12,6 +15,8 @@ import java.util.Set;
 import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 /** Все действия с телевизором. Та же логика, что в tvtool.py, но через ADB изнутри самого ТВ. */
 public final class Tv {
@@ -444,17 +449,22 @@ public final class Tv {
 
     // ---------- приложения с флешки и обход блокировок ----------
 
-    /** APK из папки apk в корне флешки. Сам установщик пропускаем, чтобы не перезапустить себя. */
+    /** APK и архивы из папки apk в корне флешки. Сам установщик пропускаем, чтобы не перезапустить себя. */
     public List<String> usbApks() throws IOException {
         List<String> result = new ArrayList<>();
-        for (String line : sh("for f in /storage/*/apk/*.apk; do [ -f \"$f\" ] && echo \"$f\"; done").split("\n")) {
+        for (String line : sh("for f in /storage/*/apk/*; do [ -f \"$f\" ] && echo \"$f\"; done").split("\n")) {
             line = line.trim();
             String name = line.substring(line.lastIndexOf('/') + 1).toLowerCase();
-            if (line.endsWith(".apk") && !name.contains("tvtuner")) {
+            if ((name.endsWith(".apk") || isBundle(name)) && !name.contains("tvtuner")) {
                 result.add(line);
             }
         }
         return result;
+    }
+
+    /** Архивы из нескольких APK (split APK): .apkm с APKMirror, .apks, .xapk. */
+    static boolean isBundle(String name) {
+        return name.endsWith(".apkm") || name.endsWith(".apks") || name.endsWith(".xapk");
     }
 
     public int installFromUsb() throws IOException {
@@ -467,8 +477,8 @@ public final class Tv {
         for (String path : apks) {
             String name = path.substring(path.lastIndexOf('/') + 1);
             log.line("Установка " + name + "...");
-            String out = sh("cp " + quote(path) + " " + TMP_APK + " && pm install -r " + TMP_APK
-                    + "; rm -f " + TMP_APK);
+            String out = isBundle(name.toLowerCase()) ? installBundle(path)
+                    : sh("cp " + quote(path) + " " + TMP_APK + " && pm install -r " + TMP_APK + "; rm -f " + TMP_APK);
             boolean ok = out.contains("Success");
             if (ok) {
                 installed++;
@@ -477,6 +487,64 @@ public final class Tv {
             log.line(ok ? "  ✓ установлено" : "  ✗ " + lines[lines.length - 1]);
         }
         return installed;
+    }
+
+    /** Ставит split APK так же, как adb install-multiple: одна сессия, части передаются через stdin. */
+    String installBundle(String path) throws IOException {
+        Map<String, byte[]> parts = new LinkedHashMap<>();
+        Set<String> abis = new HashSet<>();
+        for (String abi : sh("getprop ro.product.cpu.abilist").split(",")) {
+            abis.add(abi.trim().replace('-', '_'));
+        }
+        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(adb.exec("cat " + quote(path), null)))) {
+            for (ZipEntry e; (e = zip.getNextEntry()) != null; ) {
+                String name = e.getName().substring(e.getName().lastIndexOf('/') + 1);
+                if (!name.endsWith(".apk") || isForeignAbi(name, abis)) {
+                    continue;  // части для чужого процессора ТВ не нужны
+                }
+                ByteArrayOutputStream data = new ByteArrayOutputStream();
+                byte[] buf = new byte[65536];
+                for (int n; (n = zip.read(buf)) > 0; ) {
+                    data.write(buf, 0, n);
+                }
+                parts.put(name, data.toByteArray());
+            }
+        }
+        if (parts.isEmpty()) {
+            return "в архиве нет APK (файл повреждён или зашифрован)";
+        }
+        long total = 0;
+        for (byte[] p : parts.values()) {
+            total += p.length;
+        }
+        Matcher session = Pattern.compile("\\[(\\d+)]").matcher(sh("cmd package install-create -r -S " + total));
+        if (!session.find()) {
+            return "не удалось начать установку";
+        }
+        String id = session.group(1);
+        int index = 0;
+        for (Map.Entry<String, byte[]> part : parts.entrySet()) {
+            String out = new String(adb.exec("cmd package install-write -S " + part.getValue().length + " " + id
+                    + " " + (index++) + "_" + part.getKey().replaceAll("[^A-Za-z0-9._-]", "_") + " -",
+                    part.getValue()), StandardCharsets.UTF_8);
+            if (!out.contains("Success")) {
+                sh("cmd package install-abandon " + id);
+                return out.trim().isEmpty() ? "не удалось передать " + part.getKey() : out.trim();
+            }
+        }
+        return sh("cmd package install-commit " + id);
+    }
+
+    private static boolean isForeignAbi(String apkName, Set<String> deviceAbis) {
+        if (deviceAbis.contains("")) {
+            return false;  // список процессоров неизвестен: ставим всё
+        }
+        for (String abi : new String[]{"arm64_v8a", "armeabi_v7a", "armeabi", "x86_64", "x86"}) {
+            if (apkName.contains("config." + abi + ".") || apkName.equals(abi + ".apk")) {
+                return !deviceAbis.contains(abi);
+            }
+        }
+        return false;
     }
 
     public String findByeDpi() throws IOException {
