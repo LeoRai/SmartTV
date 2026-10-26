@@ -2,20 +2,27 @@
 """Ускорение и настройка Android-телевизоров (Novex на Яндекс ТВ / Android TV) через ADB.
 
 Ничего не удаляет из системы: приложения только отключаются (pm disable-user)
-и в любой момент возвращаются командой restore.
+или им запрещается работать в фоне, и всё возвращается командой restore.
+Запуск без аргументов открывает простое меню.
 """
 
 import argparse
 import datetime
+import glob
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 STATE_FILE = os.path.join(HERE, "state", "disabled.json")
+MY_PACKAGES = os.path.join(HERE, "my_packages.txt")
+APK_DIR = os.path.join(HERE, "apk")
 ADB_PORT = 5555
+MIN_FREE_MB_FOR_COMPILE = 500
 
 # Пакеты, без которых телевизор может не загрузиться, потерять картинку,
 # пульт, HDMI или настройки. Их нельзя отключать без --force.
@@ -35,11 +42,29 @@ PROTECTED_PREFIXES = (
     "com.cvte.",
 )
 
-SPEED_SETTINGS = {
-    "window_animation_scale": "0.5",
-    "transition_animation_scale": "0.5",
-    "animator_duration_scale": "0.5",
-}
+# Приложения, которые пользователь хочет сохранить при любой чистке.
+KEEP_KEYWORDS = ("kinopoisk", "byedpi")
+
+ANIM_KEYS = ("window_animation_scale", "transition_animation_scale", "animator_duration_scale")
+
+# Действия с пакетами: off/on — отключить/включить, bg/fg — запретить/разрешить работу в фоне.
+ACTION_TEXT = {"off": "отключено", "on": "включено",
+               "bg": "работа в фоне запрещена", "fg": "работа в фоне разрешена"}
+# Строка в my_packages.txt без '#' — "plain", с префиксом 'bg' — "bg".
+FILE_ACTIONS = {"disable": {"plain": "off", "bg": "bg"}, "enable": {"plain": "on", "bg": "fg"}}
+DIRECT_ACTIONS = {"disable": "off", "enable": "on", "restrict": "bg", "allow": "fg"}
+
+
+def find_adb():
+    # adb рядом со скриптом (в папке platform-tools) работает без настройки PATH.
+    for name in ("adb.exe", "adb"):
+        path = os.path.join(HERE, name)
+        if os.path.isfile(path):
+            return path
+    return shutil.which("adb")
+
+
+ADB = find_adb()
 
 
 def die(msg):
@@ -48,7 +73,7 @@ def die(msg):
 
 
 def adb(*args, serial=None, check=True):
-    cmd = ["adb"]
+    cmd = [ADB or "adb"]
     if serial:
         cmd += ["-s", serial]
     cmd += list(args)
@@ -65,11 +90,19 @@ def shell(serial, command, check=True):
     return adb("shell", command, serial=serial, check=check)
 
 
+def connected_devices():
+    lines = adb("devices").splitlines()[1:]
+    return [l.split()[0] for l in lines if l.strip().endswith("device")], lines
+
+
 def pick_device(serial):
     if serial:
         return serial
-    lines = adb("devices").splitlines()[1:]
-    devices = [l.split()[0] for l in lines if l.strip().endswith("device")]
+    devices, lines = connected_devices()
+    last_ip = load_state().get("_last_ip")
+    if not devices and last_ip:
+        adb("connect", last_ip, check=False)
+        devices, lines = connected_devices()
     if not devices:
         unauthorized = [l for l in lines if "unauthorized" in l]
         if unauthorized:
@@ -80,13 +113,27 @@ def pick_device(serial):
     return devices[0]
 
 
-# Приложения, которые пользователь хочет сохранить при любой чистке.
-KEEP_KEYWORDS = ("kinopoisk",)
+_device_keys = {}
+
+
+def device_key(serial):
+    # IP телевизора может смениться, поэтому состояние храним по серийному номеру.
+    if serial not in _device_keys:
+        sn = shell(serial, "getprop ro.serialno", check=False)
+        _device_keys[serial] = sn if sn and sn.lower() not in ("unknown", "0123456789abcdef") else serial
+    return _device_keys[serial]
+
+
+def protection_reason(pkg):
+    if any(pkg == p or pkg.startswith(p) for p in PROTECTED_PREFIXES):
+        return "системный пакет"
+    if any(k in pkg for k in KEEP_KEYWORDS):
+        return "нужное вам приложение"
+    return None
 
 
 def is_protected(pkg):
-    return (any(pkg == p or pkg.startswith(p) for p in PROTECTED_PREFIXES)
-            or any(k in pkg for k in KEEP_KEYWORDS))
+    return protection_reason(pkg) is not None
 
 
 def home_launcher(serial):
@@ -96,9 +143,62 @@ def home_launcher(serial):
     return last.split("/")[0] if "/" in last else None
 
 
+def critical_packages(serial):
+    """Пакеты, которые сейчас используются как главный экран, клавиатура, VPN или служба (Projectivy)."""
+    setting = lambda name: shell(serial, f"settings get secure {name}", check=False)
+    crit = {}
+    launcher = home_launcher(serial)
+    if launcher:
+        crit[launcher] = "текущий лаунчер"
+    ime = setting("default_input_method")
+    if "/" in ime:
+        crit[ime.split("/")[0]] = "клавиатура"
+    vpn = setting("always_on_vpn_app")
+    if vpn and vpn != "null":
+        crit[vpn] = "обход блокировок (VPN)"
+    for svc in setting("enabled_accessibility_services").split(":"):
+        if "/" in svc:
+            crit[svc.split("/")[0]] = "служба спец. возможностей"
+    return crit
+
+
 def list_packages(serial, flag):
     out = shell(serial, f"pm list packages {flag}")
     return sorted(l[len("package:"):] for l in out.splitlines() if l.startswith("package:"))
+
+
+def meminfo_mb(serial):
+    values = {}
+    for line in shell(serial, "cat /proc/meminfo", check=False).splitlines():
+        parts = line.split()
+        if len(parts) >= 2 and parts[1].isdigit():
+            values[parts[0].rstrip(":")] = int(parts[1]) // 1024
+    return values
+
+
+def ram_by_package(serial):
+    """Сколько ОЗУ (МБ) занимает каждое запущенное приложение, по данным dumpsys meminfo."""
+    usage = {}
+    in_section = False
+    for line in shell(serial, "dumpsys meminfo", check=False).splitlines():
+        if "Total PSS by process" in line:
+            in_section = True
+            continue
+        if in_section:
+            m = re.match(r"\s*([\d,]+)K: (\S+)", line)
+            if not m:
+                break
+            pkg = m.group(2).split(":")[0]  # процессы вида pkg:service считаем вместе
+            usage[pkg] = usage.get(pkg, 0) + int(m.group(1).replace(",", "")) // 1024
+    return usage
+
+
+def free_data_mb(serial):
+    lines = shell(serial, "df -k /data", check=False).splitlines()
+    try:
+        return int(lines[-1].split()[3]) // 1024
+    except (IndexError, ValueError):
+        return None
 
 
 def load_state():
@@ -115,10 +215,139 @@ def save_state(state):
         json.dump(state, f, ensure_ascii=False, indent=2)
 
 
+def device_state(state, serial):
+    key = device_key(serial)
+    entry = state.get(key)
+    if entry is None and serial in state:  # первая версия хранила данные по адресу ТВ
+        entry = state.pop(serial)
+    if isinstance(entry, list):  # ...и только списком отключённых пакетов
+        entry = {"disabled": entry}
+    entry = entry or {}
+    for k in ("disabled", "restricted"):
+        entry.setdefault(k, [])
+    state[key] = entry
+    return entry
+
+
 def read_list(path):
-    with open(path, encoding="utf-8") as f:
-        # Берём только имя пакета: метки вида [системный] после него игнорируются.
-        return [l.split("#")[0].split()[0] for l in f if l.split("#")[0].strip()]
+    """Пакеты из my_packages.txt: [("plain"|"bg", пакет)]. Метки [..] после имени игнорируются."""
+    entries = []
+    with open(path, encoding="utf-8", errors="replace") as f:
+        for line in f:
+            parts = line.split("#")[0].split()
+            if not parts:
+                continue
+            if parts[0].lower() == "bg" and len(parts) > 1:
+                entries.append(("bg", parts[1]))
+            else:
+                entries.append(("plain", parts[0]))
+    return entries
+
+
+def set_background(serial, pkg, allowed):
+    mode = "default" if allowed else "ignore"
+    for op in ("RUN_IN_BACKGROUND", "RUN_ANY_IN_BACKGROUND"):
+        shell(serial, f"cmd appops set {pkg} {op} {mode}", check=False)
+    if not allowed:
+        shell(serial, f"am force-stop {pkg}", check=False)  # останавливаем то, что уже запущено
+    got = shell(serial, f"cmd appops get {pkg} RUN_ANY_IN_BACKGROUND", check=False)
+    return ("ignore" in got) != allowed
+
+
+def apply_actions(serial, actions, force=False):
+    state = load_state()
+    dev = device_state(state, serial)
+    crit = critical_packages(serial) if any(act in ("off", "bg") for act, _ in actions) else {}
+    for act, pkg in actions:
+        if act in ("off", "bg") and not force:
+            reason = crit.get(pkg) or protection_reason(pkg)
+            if reason:
+                print(f"  пропуск {pkg}: {reason} (защищён, нужен --force)")
+                continue
+        if act in ("off", "on"):
+            verb = "enable" if act == "on" else "disable-user --user 0"
+            out = shell(serial, f"pm {verb} {pkg}", check=False)
+            ok = "new state" in out
+            detail = ACTION_TEXT[act] if ok else (out.splitlines()[-1] if out else "нет ответа")
+        else:
+            ok = set_background(serial, pkg, allowed=(act == "fg"))
+            detail = ACTION_TEXT[act] if ok else "не удалось (пакет не найден или старый Android)"
+        print(f"  {'OK  ' if ok else 'FAIL'} {pkg}: {detail}")
+        if ok:
+            key = "disabled" if act in ("off", "on") else "restricted"
+            items = set(dev[key])
+            (items.add if act in ("off", "bg") else items.discard)(pkg)
+            dev[key] = sorted(items)
+    save_state(state)
+
+
+def user_disabled_packages(serial):
+    """Отключённые пользователем (enabled=3). Отключённое производителем не трогаем."""
+    return [pkg for pkg in list_packages(serial, "-d")
+            if "enabled=3" in shell(serial, f"dumpsys package {pkg} | grep -o 'enabled=[0-9]'", check=False)]
+
+
+def set_animations(serial, value):
+    state = load_state()
+    dev = device_state(state, serial)
+    if "anim" not in dev:  # заводские значения запоминаем один раз, чтобы вернуть их в restore
+        dev["anim"] = {k: shell(serial, f"settings get global {k}", check=False) for k in ANIM_KEYS}
+    for k in ANIM_KEYS:
+        shell(serial, f"settings put global {k} {value}")
+    save_state(state)
+    print(f"  скорость анимаций: {value} (1 — заводская, 0 — без анимаций)")
+
+
+def restore_animations(serial):
+    state = load_state()
+    original = device_state(state, serial).pop("anim", None) or {}
+    for k in ANIM_KEYS:
+        v = original.get(k, "null")
+        shell(serial, f"settings delete global {k}" if v in ("", "null") else f"settings put global {k} {v}",
+              check=False)
+    save_state(state)
+    print("  анимации возвращены к заводским")
+
+
+def compile_targets(serial):
+    """Приложения, которыми реально пользуются: установленные вами, Кинопоиск и главный экран."""
+    restricted = set(device_state(load_state(), serial)["restricted"])
+    targets = set(list_packages(serial, "-3 -e"))
+    targets |= {p for p in list_packages(serial, "-e") if any(k in p for k in KEEP_KEYWORDS)}
+    launcher = home_launcher(serial)
+    if launcher and launcher != "android":
+        targets.add(launcher)
+    return sorted(targets - restricted)
+
+
+def compile_apps(serial, packages):
+    free = free_data_mb(serial)
+    if free is not None and free < MIN_FREE_MB_FOR_COMPILE:
+        print(f"  компиляция пропущена: на диске свободно всего {free} МБ")
+        return
+    packages = packages or compile_targets(serial)
+    print(f"  полная компиляция {len(packages)} приложений (может занять несколько минут)...")
+    for pkg in packages:
+        out = shell(serial, f"cmd package compile -m speed -f {pkg}", check=False)
+        print(f"  {'OK  ' if 'Success' in out else 'FAIL'} {pkg}")
+
+
+def boost(serial):
+    before = meminfo_mb(serial).get("MemAvailable")
+    shell(serial, "am kill-all", check=False)
+    time.sleep(2)
+    after = meminfo_mb(serial).get("MemAvailable")
+    if before is not None and after is not None:
+        print(f"  свободно ОЗУ: {before} → {after} МБ")
+
+
+def reset_resolution(serial):
+    shell(serial, "wm size reset")
+    shell(serial, "wm density reset")
+    state = load_state()
+    device_state(state, serial).pop("resolution", None)
+    save_state(state)
+    print("  разрешение интерфейса возвращено к заводскому")
 
 
 # ---------- команды ----------
@@ -129,6 +358,9 @@ def cmd_connect(a):
     print(out)
     if "connected" not in out:
         die("не удалось подключиться. Проверьте IP и что на ТВ включена «Отладка по сети».")
+    state = load_state()
+    state["_last_ip"] = target  # в следующий раз подключимся сами
+    save_state(state)
     print("Если на экране ТВ появился запрос — нажмите «Разрешить» (лучше с галочкой «Всегда»).")
 
 
@@ -140,95 +372,176 @@ def cmd_info(a):
     print(f"Android:      {prop('ro.build.version.release')} (SDK {prop('ro.build.version.sdk')})")
     print(f"Прошивка:     {prop('ro.build.display.id')}")
     print(f"Лаунчер:      {home_launcher(s) or 'не определён'}")
-    mem = shell(s, "cat /proc/meminfo", check=False).splitlines()[:3]
-    print("Память:       " + "; ".join(" ".join(m.split()) for m in mem))
-    print("Хранилище /data:")
-    print(shell(s, "df -h /data", check=False))
-    print(f"Отключено этим скриптом: {len(load_state().get(s, []))} пакетов")
+
+    mem = meminfo_mb(s)
+    total, avail = mem.get("MemTotal"), mem.get("MemAvailable", mem.get("MemFree"))
+    low_ram = " (система в режиме low_ram)" if prop("ro.config.low_ram") == "true" else ""
+    print(f"ОЗУ:          всего {total} МБ, свободно {avail} МБ{low_ram}")
+    free = free_data_mb(s)
+    print(f"Диск:         свободно {free if free is not None else '?'} МБ")
+    last_line = lambda cmd: (shell(s, cmd, check=False).splitlines() or [""])[-1]
+    size = re.search(r"(\d+)x(\d+)", last_line("wm size"))  # последняя строка — действующий размер
+    density = re.search(r"(\d+)\s*$", last_line("wm density"))
+    print(f"Интерфейс:    {size.group(0) if size else '?'}, плотность {density.group(1) if density else '?'}")
+    try:
+        uptime_h = float(shell(s, "cat /proc/uptime", check=False).split()[0]) / 3600
+    except (IndexError, ValueError):
+        uptime_h = 0
+    print(f"Работает без перезагрузки: {uptime_h:.0f} ч")
+
+    usage = sorted(ram_by_package(s).items(), key=lambda kv: -kv[1])[:10]
+    if usage:
+        print("\nБольше всего ОЗУ занимают:")
+        for pkg, mb in usage:
+            print(f"  {mb:>5} МБ  {pkg}")
+
+    dev = device_state(load_state(), s)
+    print(f"\nИзменено этим скриптом: отключено {len(dev['disabled'])}, "
+          f"запрещён фон у {len(dev['restricted'])}")
+
+    try:
+        anim_fast = float(shell(s, "settings get global animator_duration_scale", check=False)) < 1
+    except ValueError:
+        anim_fast = False
+    tips = []
+    if free is not None and free < 1024:
+        tips.append("Мало места на диске — это сильно тормозит ТВ. Удалите ненужное и запустите speedup.")
+    if total and total <= 1600:
+        tips.append("Мало ОЗУ: отключите или запретите фон (bg) тяжёлым приложениям из списка выше.")
+    if not anim_fast:
+        tips.append("Анимации не ускорены: python tvtool.py speedup --max")
+    if uptime_h > 72:
+        tips.append("ТВ давно не перезагружался: python tvtool.py reboot")
+    if size and int(size.group(2)) > 720 and "resolution" not in dev:
+        tips.append("Можно понизить разрешение интерфейса: python tvtool.py resolution 720 (эксперимент)")
+    if tips:
+        print("\nСоветы:")
+        for tip in tips:
+            print(f"  • {tip}")
 
 
 def cmd_scan(a):
     s = pick_device(a.serial)
     enabled = list_packages(s, "-e")
     system = set(list_packages(s, "-s"))
-    launcher = home_launcher(s)
-    path = a.output or os.path.join(HERE, "my_packages.txt")
+    crit = critical_packages(s)
+    usage = ram_by_package(s)
+    dev = device_state(load_state(), s)
+    path = a.output or MY_PACKAGES
     now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     with open(path, "w", encoding="utf-8") as f:
         f.write(f"# Включённые приложения ТВ ({s}), снято {now}\n")
-        f.write("# Чтобы ОТКЛЮЧИТЬ приложение, уберите '#' в начале его строки,\n")
-        f.write("# затем выполните: python tvtool.py disable -f my_packages.txt\n")
-        f.write("# Строки с [ЗАЩИЩЁН] трогать не нужно: это система, картинка, пульт, HDMI.\n\n")
-        for pkg in enabled:
-            tags = []
-            if pkg in system:
-                tags.append("системный")
-            if pkg == launcher:
-                tags.append("ТЕКУЩИЙ ЛАУНЧЕР")
-            if is_protected(pkg):
+        f.write("# Сверху — те, что сейчас занимают больше всего памяти.\n#\n")
+        f.write("#   уберите '#' в начале строки   -> приложение будет ОТКЛЮЧЕНО;\n")
+        f.write("#   замените '#' на 'bg'          -> приложение останется, но не будет работать в фоне;\n")
+        f.write("#   строку без изменений          -> ничего не меняется.\n")
+        f.write("# Затем выполните: python tvtool.py apply  (или пункт меню «Применить my_packages.txt»)\n")
+        f.write("# Строки с [ЗАЩИЩЁН] трогать не нужно: без них пропадёт картинка, пульт, HDMI и т. п.\n\n")
+        for pkg in sorted(enabled, key=lambda p: (-usage.get(p, 0), p)):
+            tags = ["системный" if pkg in system else "пользовательский"]
+            if usage.get(pkg):
+                tags.append(f"{usage[pkg]} МБ ОЗУ")
+            if pkg in crit:
+                tags.append(f"ЗАЩИЩЁН: {crit[pkg]}")
+            elif is_protected(pkg):
                 tags.append("ЗАЩИЩЁН")
-            f.write(f"# {pkg:<60} [{', '.join(tags) or 'пользовательский'}]\n")
+            prefix = "bg" if pkg in dev["restricted"] else "#"
+            f.write(f"{prefix} {pkg:<58} [{', '.join(tags)}]\n")
+        if dev["disabled"]:
+            f.write("\n# Уже отключены этим скриптом (вернуть: python tvtool.py enable <пакет>):\n")
+            for pkg in dev["disabled"]:
+                f.write(f"#   {pkg}\n")
     print(f"Найдено {len(enabled)} включённых пакетов. Список сохранён в {path}")
 
 
-def change_packages(a, enable):
+def cmd_packages(a):
     s = pick_device(a.serial)
-    pkgs = read_list(a.file) if a.file else a.packages
-    if not pkgs:
+    if a.file:
+        if not os.path.isfile(a.file):
+            die(f"файл {a.file} не найден. Сначала выполните: python tvtool.py scan")
+        mapping = FILE_ACTIONS["enable" if a.cmd == "enable" else "disable"]
+        actions = [(mapping[kind], pkg) for kind, pkg in read_list(a.file)]
+    else:
+        actions = [(DIRECT_ACTIONS[a.cmd], pkg) for pkg in a.packages]
+    if not actions:
         die("не указано ни одного пакета.")
-    launcher = home_launcher(s)
-    state = load_state()
-    done = set(state.get(s, []))
-    for pkg in pkgs:
-        if not enable:
-            if pkg == launcher and not a.force:
-                print(f"  пропуск {pkg}: это текущий лаунчер — сначала поставьте другой.")
-                continue
-            if is_protected(pkg) and not a.force:
-                print(f"  пропуск {pkg}: защищённый системный пакет (нужен --force).")
-                continue
-        verb = "enable" if enable else "disable-user --user 0"
-        out = shell(s, f"pm {verb} {pkg}", check=False)
-        ok = "new state" in out
-        print(f"  {'OK  ' if ok else 'FAIL'} {pkg}: {out.splitlines()[-1] if out else 'нет ответа'}")
-        if ok:
-            (done.discard if enable else done.add)(pkg)
-    state[s] = sorted(done)
-    save_state(state)
+    apply_actions(s, actions, a.force)
 
 
 def cmd_restore(a):
     s = pick_device(a.serial)
-    pkgs = load_state().get(s, [])
-    if not pkgs:
-        # Подстраховка: если файл состояния потерян, включаем всё, что отключено.
-        pkgs = list_packages(s, "-d")
-    if not pkgs:
-        print("Отключённых приложений нет.")
-        return
-    a.packages, a.file = pkgs, None
-    change_packages(a, enable=True)
+    dev = device_state(load_state(), s)
+    # Подстраховка: если файл состояния потерян, включаем всё, что отключено пользователем.
+    disabled = dev["disabled"] or user_disabled_packages(s)
+    actions = [("on", p) for p in disabled] + [("fg", p) for p in dev["restricted"]]
+    if actions:
+        apply_actions(s, actions)
+    else:
+        print("  отключённых и ограниченных приложений нет")
+    restore_animations(s)
+    if dev.get("resolution"):
+        reset_resolution(s)
+    print("Готово. Перезагрузите ТВ: python tvtool.py reboot")
 
 
 def cmd_speedup(a):
     s = pick_device(a.serial)
-    values = {k: "1" for k in SPEED_SETTINGS} if a.undo else SPEED_SETTINGS
-    if a.no_anim and not a.undo:
-        values = {k: "0" for k in SPEED_SETTINGS}
-    for key, val in values.items():
-        shell(s, f"settings put global {key} {val}")
-        print(f"  {key} = {val}")
-    if not a.undo:
-        print("  очистка кэша приложений...")
-        shell(s, "pm trim-caches 999G", check=False)
-        print("  фоновая оптимизация приложений (может занять несколько минут)...")
-        shell(s, "cmd package bg-dexopt-job", check=False)
+    if a.undo:
+        restore_animations(s)
+        return
+    set_animations(s, "0" if a.no_anim or a.max else "0.5")
+    print("  очистка кэша приложений...")
+    shell(s, "pm trim-caches 999G", check=False)
+    print("  фоновая оптимизация приложений (может занять несколько минут)...")
+    shell(s, "cmd package bg-dexopt-job", check=False)
+    if a.max:
+        compile_apps(s, [])
+        boost(s)
     print("Готово. Перезагрузите ТВ: python tvtool.py reboot")
+
+
+def cmd_compile(a):
+    compile_apps(pick_device(a.serial), a.packages)
+
+
+def cmd_boost(a):
+    boost(pick_device(a.serial))
+
+
+def cmd_resolution(a):
+    s = pick_device(a.serial)
+    if a.mode == "reset":
+        reset_resolution(s)
+        return
+    size = re.search(r"Physical size: (\d+)x(\d+)", shell(s, "wm size"))
+    dens = re.search(r"Physical density: (\d+)", shell(s, "wm density"))
+    if not size or not dens:
+        die("не удалось узнать разрешение экрана.")
+    w, h, d = int(size.group(1)), int(size.group(2)), int(dens.group(1))
+    if h <= 720:
+        print(f"Интерфейс уже работает в {w}x{h}, понижать нечего.")
+        return
+    # Меняем размер и плотность в одной пропорции, чтобы всё осталось того же размера.
+    new_w, new_d = round(w * 720 / h / 2) * 2, round(d * 720 / h)
+    shell(s, f"wm size {new_w}x720")
+    shell(s, f"wm density {new_d}")
+    state = load_state()
+    device_state(state, s)["resolution"] = f"{new_w}x720, плотность {new_d}"
+    save_state(state)
+    print(f"Интерфейс: {w}x{h} → {new_w}x720. Видео по-прежнему выводится в полном разрешении.")
+    print("Проверьте меню, приложения, HDMI и антенну. Если что-то не так: python tvtool.py resolution reset")
 
 
 def cmd_install(a):
     s = pick_device(a.serial)
-    for apk in a.apks:
+    if not a.apks:
+        os.makedirs(APK_DIR, exist_ok=True)
+    apks = []
+    for path in a.apks or [APK_DIR]:
+        apks += sorted(glob.glob(os.path.join(path, "*.apk"))) if os.path.isdir(path) else [path]
+    if not apks:
+        die(f"APK-файлы не найдены. Положите их в папку {APK_DIR}")
+    for apk in apks:
         if not os.path.isfile(apk):
             print(f"  FAIL {apk}: файл не найден")
             continue
@@ -261,8 +574,9 @@ def cmd_reboot(a):
     print("Телевизор перезагружается.")
 
 
-def main():
-    p = argparse.ArgumentParser(description="Ускорение Android-телевизора через ADB (безопасно, обратимо).")
+def main(argv=None):
+    p = argparse.ArgumentParser(description="Ускорение Android-телевизора через ADB (безопасно, обратимо).",
+                                epilog="Без аргументов открывается меню.")
     p.add_argument("-s", "--serial", help="адрес устройства, если подключено несколько")
     sub = p.add_subparsers(dest="cmd", required=True)
 
@@ -270,29 +584,50 @@ def main():
     c.add_argument("ip")
     c.set_defaults(func=cmd_connect)
 
-    sub.add_parser("info", help="модель, версия Android, память").set_defaults(func=cmd_info)
+    sub.add_parser("info", help="диагностика: память, диск, что занимает ОЗУ, советы").set_defaults(func=cmd_info)
 
-    c = sub.add_parser("scan", help="сохранить список приложений в файл для редактирования")
+    c = sub.add_parser("scan", help="сохранить список приложений в my_packages.txt для разметки")
     c.add_argument("-o", "--output")
     c.set_defaults(func=cmd_scan)
 
-    for name, enable in (("disable", False), ("enable", True)):
-        c = sub.add_parser(name, help=f"{'включить' if enable else 'отключить'} приложения")
-        c.add_argument("packages", nargs="*")
-        c.add_argument("-f", "--file", help="файл со списком пакетов (как после scan)")
-        c.add_argument("--force", action="store_true", help="разрешить системные пакеты (опасно)")
-        c.set_defaults(func=lambda a, e=enable: change_packages(a, e))
+    c = sub.add_parser("apply", help="применить разметку из my_packages.txt")
+    c.add_argument("file", nargs="?", default=MY_PACKAGES)
+    c.add_argument("--force", action="store_true", help="разрешить защищённые пакеты (опасно)")
+    c.set_defaults(func=cmd_packages, packages=[])
 
-    c = sub.add_parser("restore", help="включить обратно всё, что было отключено")
-    c.set_defaults(func=cmd_restore, force=False)
+    for name, help_text in (("disable", "отключить приложения"), ("enable", "включить приложения"),
+                            ("restrict", "запретить приложениям работать в фоне"),
+                            ("allow", "снова разрешить приложениям работать в фоне")):
+        c = sub.add_parser(name, help=help_text)
+        c.add_argument("packages", nargs="*")
+        if name in ("disable", "enable"):
+            c.add_argument("-f", "--file", help="файл со списком пакетов (как после scan)")
+        if name in ("disable", "restrict"):
+            c.add_argument("--force", action="store_true", help="разрешить защищённые пакеты (опасно)")
+        c.set_defaults(func=cmd_packages, file=None, force=False)
+
+    sub.add_parser("restore", help="вернуть всё как было: приложения, фон, анимации, разрешение"
+                   ).set_defaults(func=cmd_restore)
 
     c = sub.add_parser("speedup", help="ускорить анимации, очистить кэш, оптимизировать приложения")
+    c.add_argument("--max", action="store_true",
+                   help="максимум: без анимаций, полная компиляция приложений, очистка ОЗУ")
     c.add_argument("--no-anim", action="store_true", help="полностью выключить анимации")
-    c.add_argument("--undo", action="store_true", help="вернуть стандартные анимации")
+    c.add_argument("--undo", action="store_true", help="вернуть заводские анимации")
     c.set_defaults(func=cmd_speedup)
 
-    c = sub.add_parser("install", help="установить APK-файлы")
-    c.add_argument("apks", nargs="+")
+    c = sub.add_parser("compile", help="полностью скомпилировать приложения для быстрого запуска")
+    c.add_argument("packages", nargs="*", help="по умолчанию: ваши приложения, Кинопоиск, главный экран")
+    c.set_defaults(func=cmd_compile)
+
+    sub.add_parser("boost", help="освободить ОЗУ перед просмотром").set_defaults(func=cmd_boost)
+
+    c = sub.add_parser("resolution", help="понизить разрешение интерфейса до 720p (эксперимент)")
+    c.add_argument("mode", choices=["720", "reset"])
+    c.set_defaults(func=cmd_resolution)
+
+    c = sub.add_parser("install", help="установить APK-файлы (по умолчанию все из папки apk)")
+    c.add_argument("apks", nargs="*")
     c.set_defaults(func=cmd_install)
 
     c = sub.add_parser("vpn", help="запускать обход блокировок (ByeDPI) при включении ТВ")
@@ -302,13 +637,49 @@ def main():
 
     sub.add_parser("reboot", help="перезагрузить ТВ").set_defaults(func=cmd_reboot)
 
-    a = p.parse_args()
-    if a.cmd == "disable" and a.file and not os.path.isfile(a.file):
-        die(f"файл {a.file} не найден")
+    a = p.parse_args(argv)
     a.func(a)
 
 
+MENU = (
+    ("Подключиться к телевизору", None),
+    ("Диагностика: память, диск, что тормозит", ["info"]),
+    ("Быстрое ускорение (безопасно)", ["speedup"]),
+    ("Максимальное ускорение", ["speedup", "--max"]),
+    ("Создать список приложений (my_packages.txt)", ["scan"]),
+    ("Применить my_packages.txt", ["apply"]),
+    ("Освободить память перед просмотром", ["boost"]),
+    ("Установить все APK из папки apk", ["install"]),
+    ("Перезагрузить телевизор", ["reboot"]),
+    ("Вернуть всё как было", ["restore"]),
+)
+
+
+def menu():
+    while True:
+        print("\n=== Ускорение телевизора ===")
+        for i, (title, _) in enumerate(MENU, 1):
+            print(f"  {i:>2}. {title}")
+        print("   0. Выход")
+        choice = input("Выберите пункт: ").strip()
+        if choice == "0":
+            return
+        if not choice.isdigit() or not 1 <= int(choice) <= len(MENU):
+            continue
+        args = MENU[int(choice) - 1][1]
+        if args is None:
+            ip = input("IP-адрес ТВ (Настройки → Об устройстве → Статус): ").strip()
+            if not ip:
+                continue
+            args = ["connect", ip]
+        try:
+            main(args)
+        except SystemExit:  # ошибка уже напечатана, возвращаемся в меню
+            pass
+
+
 if __name__ == "__main__":
-    if not shutil.which("adb"):
-        die("adb не найден. Установите Android platform-tools и добавьте в PATH (см. README.md).")
-    main()
+    try:
+        main() if len(sys.argv) > 1 else menu()
+    except KeyboardInterrupt:
+        print()

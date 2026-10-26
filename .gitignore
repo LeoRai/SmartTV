@@ -1,3 +1,4 @@
 state/
 my_packages.txt
 __pycache__/
+*.apk
