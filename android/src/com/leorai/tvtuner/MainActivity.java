@@ -31,6 +31,7 @@ import java.util.concurrent.Executors;
 public class MainActivity extends Activity {
     private static final int ADB_PORT = 5555;
     private static final int PROMPT_TIMEOUT_MS = 120000;
+    private static final long GAME_LAUNCH_DELAY_MS = 6000;  // успеть прочитать проверку геймпада и сети
 
     private interface Job {
         void run(Tv tv) throws Exception;
@@ -141,6 +142,32 @@ public class MainActivity extends Activity {
                 });
             }
         });
+        addButton(menu, "Игровой режим (Moonlight)", new Runnable() {
+            @Override
+            public void run() {
+                start("Игровой режим", new Job() {
+                    @Override
+                    public void run(Tv tv) throws Exception {
+                        String moonlight = tv.gameMode();
+                        if (moonlight != null) {
+                            log("Moonlight откроется через " + GAME_LAUNCH_DELAY_MS / 1000 + " секунд...");
+                            launchApp(moonlight, GAME_LAUNCH_DELAY_MS);
+                        }
+                    }
+                });
+            }
+        });
+        addButton(menu, "Выйти из игрового режима", new Runnable() {
+            @Override
+            public void run() {
+                start("Выход из игрового режима", new Job() {
+                    @Override
+                    public void run(Tv tv) {
+                        launchVpn(tv.gameModeOff());
+                    }
+                });
+            }
+        });
         addButton(menu, "Обход блокировок YouTube", new Runnable() {
             @Override
             public void run() {
@@ -244,7 +271,11 @@ public class MainActivity extends Activity {
             return;
         }
         log("Сейчас откроется ByeByeDPI: нажмите «Подключить» и разрешите запрос. Потом вернитесь сюда.");
-        ui.post(new Runnable() {
+        launchApp(pkg, 0);
+    }
+
+    private void launchApp(final String pkg, long delayMs) {
+        ui.postDelayed(new Runnable() {
             @Override
             public void run() {
                 PackageManager pm = getPackageManager();
@@ -254,9 +285,11 @@ public class MainActivity extends Activity {
                 }
                 if (intent != null) {
                     startActivity(intent);
+                } else {
+                    log("Не удалось открыть " + pkg + " — запустите его из списка приложений.");
                 }
             }
-        });
+        }, delayMs);
     }
 
     // ---------- экран чистки ----------

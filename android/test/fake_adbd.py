@@ -58,12 +58,14 @@ class FakeTv:
             "android": [1, 0, 0], "com.android.systemui": [1, 0, 0], "com.mediatek.tvinput": [1, 0, 0],
             "com.yandex.tv.home": [1, 0, 0], "ru.kinopoisk.tv": [1, 0, 0], "com.yandex.keyboard": [1, 0, 0],
             "com.vendor.ads": [1, 0, 0], "com.vendor.games": [1, 0, 0], "com.amediateka.tv": [0, 0, 1],
-            "com.vendor.oldsetup": [1, 2, 0], "com.leorai.tvtuner": [0, 0, 1],
+            "com.vendor.oldsetup": [1, 2, 0], "com.leorai.tvtuner": [0, 0, 1], "com.limelight": [0, 0, 1],
         }
         self.settings = {"secure/default_input_method": "com.yandex.keyboard/.Ime",
+                         "secure/enabled_accessibility_services": "com.spocky.projengmenu/.Override",
                          "global/animator_duration_scale": "1.0"}
         self.appops, self.wm, self.log = {}, {}, []
         self.killed = False
+        self.stopped = set()
         bundle = io.BytesIO()
         with zipfile.ZipFile(bundle, "w") as z:  # так устроен .apkm с APKMirror
             for name in ("base.apk", "split_config.armeabi_v7a.apk", "split_config.arm64_v8a.apk",
@@ -128,7 +130,8 @@ class FakeTv:
             return ("Applications Memory Usage (in Kilobytes):\n\nTotal PSS by process:\n"
                     "    190,345K: system (pid 900)\n    150,100K: com.yandex.tv.home (pid 1500 / activities)\n"
                     "     80,000K: com.vendor.ads (pid 2000)\n     30,000K: com.vendor.ads:push (pid 2001)\n"
-                    "     60,000K: com.amediateka.tv (pid 2100)\n\nTotal PSS by OOM adjustment:\n")
+                    "     60,000K: com.amediateka.tv (pid 2100)\n     40,000K: com.limelight (pid 2200)\n"
+                    "     35,000K: com.spocky.projengmenu (pid 2300)\n\nTotal PSS by OOM adjustment:\n")
         if c == "df -k /data":
             return "Filesystem     1K-blocks    Used Available Use% Mounted on\n/dev/block/dm-1 5000000 4300000 700000 86% /data\n"
         if w[0] == "wm":
@@ -181,8 +184,22 @@ class FakeTv:
             pkg = "io.github.romanvht.byedpi" if "byedpi" in name else "com.teamsmart.videomanager.tv"
             self.pkgs[pkg] = [0, 0, 1]
             return "Success\n"
-        if c in ("pm trim-caches 999G", "cmd package bg-dexopt-job") or c.startswith("am force-stop"):
+        if c.startswith("am force-stop"):
+            self.stopped.add(w[-1])
             return ""
+        if c in ("pm trim-caches 999G", "cmd package bg-dexopt-job"):
+            return ""
+        if c.startswith("pidof"):
+            return "4321\n" if w[1] in self.pkgs and w[1] not in self.stopped else ""
+        if c == "dumpsys input":
+            return ("INPUT MANAGER (dumpsys input)\n\nInput Reader State:\n  Device -1: Virtual\n    Sources: 0x00000301\n"
+                    "  Device 3: TV Remote\n    Sources: 0x00000301\n"
+                    "  Device 7: Wireless Controller\n    IsExternal: true\n    Sources: 0x01000511\n")
+        if c == "cat /sys/class/net/eth0/operstate 2>/dev/null":
+            return ""
+        if c == "dumpsys wifi | grep -m 1 mWifiInfo":
+            return ("mWifiInfo SSID: Home, BSSID: aa:bb:cc, Supplicant state: COMPLETED, RSSI: -76, "
+                    "Link speed: 72Mbps, Frequency: 2437MHz, Net ID: 0\n")
         return f"/system/bin/sh: {w[0]}: not found\n"
 
 

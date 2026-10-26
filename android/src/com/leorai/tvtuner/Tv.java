@@ -63,6 +63,11 @@ public final class Tv {
             "window_animation_scale", "transition_animation_scale", "animator_duration_scale"};
     private static final int MIN_FREE_MB_FOR_COMPILE = 500;
     private static final String TMP_APK = "/data/local/tmp/tvtuner_install.apk";
+    // Источники ввода Android: геймпад и джойстик (InputDevice.SOURCE_GAMEPAD / SOURCE_JOYSTICK).
+    private static final long SOURCE_GAMEPAD = 0x00000401L;
+    private static final long SOURCE_JOYSTICK = 0x01000010L;
+    private static final Pattern INPUT_DEVICE = Pattern.compile("^\\s*Device -?\\d+: (.+)$");
+    private static final Pattern INPUT_SOURCES = Pattern.compile("^\\s*Sources: 0x([0-9a-fA-F]+)");
 
     private final AdbClient adb;
     private final Store store;
@@ -437,11 +442,7 @@ public final class Tv {
     public void boost() throws IOException {
         Integer before = meminfoMb().get("MemAvailable");
         sh("am kill-all");
-        try {
-            Thread.sleep(2000);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        pause(2000);
         Integer after = meminfoMb().get("MemAvailable");
         log.line(before != null && after != null
                 ? "Свободно ОЗУ: " + before + " → " + after + " МБ" : "Фоновые процессы остановлены.");
@@ -554,6 +555,121 @@ public final class Tv {
             }
         }
         return null;
+    }
+
+    // ---------- игровой режим (стрим игр с компьютера через Moonlight) ----------
+
+    public String findMoonlight() throws IOException {
+        for (String pkg : packages("-e")) {
+            String p = pkg.toLowerCase();
+            if (p.contains("limelight") || p.contains("moonlight")) {
+                return pkg;
+            }
+        }
+        return null;
+    }
+
+    /** Подключённые геймпады по данным dumpsys input. */
+    List<String> gamepads() throws IOException {
+        List<String> result = new ArrayList<>();
+        String device = null;
+        for (String line : sh("dumpsys input").split("\n")) {
+            Matcher name = INPUT_DEVICE.matcher(line);
+            if (name.matches()) {
+                device = name.group(1).trim();
+                continue;
+            }
+            Matcher sources = INPUT_SOURCES.matcher(line);
+            if (device != null && sources.find()) {
+                long s = Long.parseLong(sources.group(1), 16);
+                if ((s & SOURCE_GAMEPAD) == SOURCE_GAMEPAD || (s & SOURCE_JOYSTICK) == SOURCE_JOYSTICK) {
+                    result.add(device);
+                }
+                device = null;
+            }
+        }
+        return result;
+    }
+
+    String networkReport() throws IOException {
+        if (sh("cat /sys/class/net/eth0/operstate 2>/dev/null").equals("up")) {
+            return "Сеть: кабель — лучший вариант для игр.";
+        }
+        String wifi = sh("dumpsys wifi | grep -m 1 mWifiInfo");
+        Matcher freq = Pattern.compile("Frequency: (\\d+)MHz").matcher(wifi);
+        if (!freq.find()) {
+            return "Сеть: не удалось определить. Для игр лучше кабель или Wi-Fi 5 ГГц.";
+        }
+        Matcher rssi = Pattern.compile("RSSI: (-?\\d+)").matcher(wifi);
+        String weak = rssi.find() && Integer.parseInt(rssi.group(1)) < -70
+                ? " Сигнал слабый — поставьте роутер ближе или подключите кабель." : "";
+        return (Integer.parseInt(freq.group(1)) >= 4900
+                ? "Сеть: Wi-Fi 5 ГГц — подходит для игр."
+                : "Сеть: Wi-Fi 2,4 ГГц — возможны рывки. Подключите ТВ к сети 5 ГГц или кабелем.") + weak;
+    }
+
+    /** Готовит ТВ к стриму игр. Возвращает пакет Moonlight для запуска или null, если его нет. */
+    public String gameMode() throws IOException {
+        String moonlight = findMoonlight();
+        if (moonlight == null) {
+            log.line("Moonlight не установлен. Положите его APK в папку apk на флешке "
+                    + "и нажмите «Установить APK с флешки».");
+            return null;
+        }
+        List<String> pads = gamepads();
+        log.line(pads.isEmpty()
+                ? "Геймпад не найден: подключите его в Настройки → Пульты и аксессуары или кабелем в USB."
+                : "Геймпад: " + String.join(", ", pads));
+        log.line(networkReport());
+
+        // VPN пропускает через себя и домашнюю сеть, из-за этого стрим тормозит или не идёт совсем.
+        String vpn = findByeDpi();
+        if (vpn != null && !sh("pidof " + vpn).isEmpty()) {
+            sh("am force-stop " + vpn);
+            store.put("game_vpn", vpn);
+            log.line("Обход блокировок приостановлен на время игры. Вернуть — «Выйти из игрового режима».");
+        }
+
+        Map<String, String> crit = criticalPackages();
+        Set<String> thirdParty = new HashSet<>(packages("-3"));
+        Integer before = meminfoMb().get("MemAvailable");
+        List<String> closed = new ArrayList<>();
+        for (String pkg : ramByPackage().keySet()) {
+            if (thirdParty.contains(pkg) && !pkg.equals(moonlight) && !pkg.equals(vpn) && !crit.containsKey(pkg)) {
+                sh("am force-stop " + pkg);
+                closed.add(pkg);
+            }
+        }
+        sh("am kill-all");
+        pause(2000);
+        Integer after = meminfoMb().get("MemAvailable");
+        log.line("Закрыто приложений: " + closed.size() + (closed.isEmpty() ? "" : " (" + String.join(", ", closed) + ")"));
+        if (before != null && after != null) {
+            log.line("Свободно ОЗУ: " + before + " → " + after + " МБ");
+        }
+        log.line("Совет: в настройках изображения ТВ выберите режим «Игра» — он убирает обработку картинки и задержку.");
+        log.line("В Moonlight: 1080p, 60 FPS, битрейт 15–20 Мбит/с, кодек H.264 (если всё плавно — можно HEVC).");
+        return moonlight;
+    }
+
+    /** Возвращает пакет ByeDPI, если его приостанавливал игровой режим (его нужно открыть снова). */
+    public String gameModeOff() {
+        String vpn = store.get("game_vpn");
+        store.put("game_vpn", "");
+        if (vpn == null || vpn.isEmpty()) {
+            log.line("Обход блокировок не приостанавливался — возвращать нечего.");
+            return null;
+        }
+        log.line("Обход блокировок включится после перезагрузки ТВ или кнопкой «Подключить» в ByeByeDPI.");
+        return vpn;
+    }
+
+    private static void pause(long ms) {
+        try {
+            Thread.sleep(ms);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     /** ByeDPI будет запускаться вместе с телевизором. Возвращает пакет или null, если его нет. */

@@ -73,6 +73,15 @@ def main():
           "все установки с флешки прошли успешно")
     check(not any("readme.txt" in c for c in tv.log), "посторонние файлы на флешке не трогаются")
     check("VPN io.github.romanvht.byedpi" in out, "найден установленный ByeDPI")
+    check("GAME com.limelight" in out, "игровой режим нашёл Moonlight")
+    check("Геймпад: Wireless Controller" in log, "найден геймпад, пульт геймпадом не считается")
+    check("Wi-Fi 2,4 ГГц" in log and "Сигнал слабый" in log, "предупреждение про 2,4 ГГц и слабый сигнал")
+    check("io.github.romanvht.byedpi" in tv.stopped and "Обход блокировок приостановлен" in log,
+          "ByeDPI приостановлен на время игры")
+    check("com.amediateka.tv" in tv.stopped and "com.limelight" not in tv.stopped
+          and "com.spocky.projengmenu" not in tv.stopped and "com.yandex.tv.home" not in tv.stopped,
+          f"закрыты лишние приложения, Moonlight, Projectivy и главный экран не тронуты: {sorted(tv.stopped)}")
+    check("GAMEOFF io.github.romanvht.byedpi" in out and "GAMEOFF2 null" in out, "выход из игрового режима возвращает ByeDPI один раз")
     check("anim=" in out and "resolution=1" in out and "disabled=com.vendor.ads," in out, "изменения сохранены для отката")
     check(tv.pkgs["com.vendor.ads"][1] == 0, "после отката реклама снова включена")
     check(tv.appops.get("com.amediateka.tv/RUN_ANY_IN_BACKGROUND") == "default", "после отката фон разрешён")

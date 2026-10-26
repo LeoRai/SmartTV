@@ -57,6 +57,9 @@ public class TvTest {
         tv.speedup(true);
         tv.installFromUsb();
         System.out.println("VPN " + tv.setupVpn());
+        System.out.println("GAME " + tv.gameMode());
+        System.out.println("GAMEOFF " + tv.gameModeOff());
+        System.out.println("GAMEOFF2 " + tv.gameModeOff());
         tv.resolution720();
         System.out.println("STORE " + new java.util.TreeMap<>(store));
         tv.restore();

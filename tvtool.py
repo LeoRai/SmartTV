@@ -597,6 +597,96 @@ def cmd_vpn(a):
     print("Один раз откройте приложение на ТВ, нажмите «Подключить» и разрешите VPN-запрос.")
 
 
+def find_package(serial, *keywords):
+    return next((p for p in list_packages(serial, "-e") if any(k in p.lower() for k in keywords)), None)
+
+
+def launch(serial, pkg):
+    for category in ("LEANBACK_LAUNCHER", "LAUNCHER"):
+        out = shell(serial, f"monkey -p {pkg} -c android.intent.category.{category} 1", check=False)
+        if "Events injected: 1" in out:
+            return True
+    print(f"  не удалось открыть {pkg} — запустите его из списка приложений на ТВ")
+    return False
+
+
+def gamepads(serial):
+    """Подключённые геймпады по данным dumpsys input (источник GAMEPAD или JOYSTICK)."""
+    result, device = [], None
+    for line in shell(serial, "dumpsys input", check=False).splitlines():
+        m = re.match(r"\s*Device -?\d+: (.+)$", line)
+        if m:
+            device = m.group(1).strip()
+            continue
+        m = re.match(r"\s*Sources: 0x([0-9a-fA-F]+)", line)
+        if device and m:
+            sources = int(m.group(1), 16)
+            if sources & 0x401 == 0x401 or sources & 0x01000010 == 0x01000010:
+                result.append(device)
+            device = None
+    return result
+
+
+def network_report(serial):
+    if shell(serial, "cat /sys/class/net/eth0/operstate 2>/dev/null", check=False) == "up":
+        return "Сеть: кабель — лучший вариант для игр."
+    wifi = shell(serial, "dumpsys wifi | grep -m 1 mWifiInfo", check=False)
+    freq, rssi = re.search(r"Frequency: (\d+)MHz", wifi), re.search(r"RSSI: (-?\d+)", wifi)
+    if not freq:
+        return "Сеть: не удалось определить. Для игр лучше кабель или Wi-Fi 5 ГГц."
+    weak = " Сигнал слабый — поставьте роутер ближе или подключите кабель." if rssi and int(rssi.group(1)) < -70 else ""
+    return ("Сеть: Wi-Fi 5 ГГц — подходит для игр." if int(freq.group(1)) >= 4900
+            else "Сеть: Wi-Fi 2,4 ГГц — возможны рывки. Подключите ТВ к сети 5 ГГц или кабелем.") + weak
+
+
+def cmd_game(a):
+    s = pick_device(a.serial)
+    state = load_state()
+    dev = device_state(state, s)
+    if a.off:
+        vpn = dev.pop("game_vpn", None)
+        save_state(state)
+        if not vpn:
+            print("Обход блокировок не приостанавливался — возвращать нечего.")
+            return
+        print("Открываю ByeByeDPI: нажмите на ТВ «Подключить». Или перезагрузите ТВ — обход включится сам.")
+        launch(s, vpn)
+        return
+
+    moonlight = find_package(s, "limelight", "moonlight")
+    if not moonlight:
+        die("Moonlight не установлен. Положите его APK в папку apk и выполните: python tvtool.py install")
+    pads = gamepads(s)
+    print(f"Геймпад: {', '.join(pads)}" if pads else
+          "Геймпад не найден: подключите его в Настройки → Пульты и аксессуары или кабелем в USB.")
+    print(network_report(s))
+
+    # VPN пропускает через себя и домашнюю сеть, из-за этого стрим тормозит или не идёт совсем.
+    vpn = find_package(s, "byedpi")
+    if vpn and shell(s, f"pidof {vpn}", check=False):
+        shell(s, f"am force-stop {vpn}", check=False)
+        dev["game_vpn"] = vpn
+        save_state(state)
+        print("Обход блокировок приостановлен на время игры. Вернуть: python tvtool.py game --off")
+
+    crit = critical_packages(s)
+    third_party = set(list_packages(s, "-3"))
+    before = meminfo_mb(s).get("MemAvailable")
+    closed = [p for p in ram_by_package(s) if p in third_party and p not in (moonlight, vpn) and p not in crit]
+    for pkg in closed:
+        shell(s, f"am force-stop {pkg}", check=False)
+    shell(s, "am kill-all", check=False)
+    time.sleep(2)
+    after = meminfo_mb(s).get("MemAvailable")
+    print(f"Закрыто приложений: {len(closed)}" + (f" ({', '.join(closed)})" if closed else ""))
+    if before is not None and after is not None:
+        print(f"Свободно ОЗУ: {before} → {after} МБ")
+    print("Совет: в настройках изображения ТВ выберите режим «Игра» — он убирает обработку картинки и задержку.")
+    print("В Moonlight: 1080p, 60 FPS, битрейт 15–20 Мбит/с, кодек H.264 (если всё плавно — можно HEVC).")
+    print("Запускаю Moonlight...")
+    launch(s, moonlight)
+
+
 def cmd_reboot(a):
     adb("reboot", serial=pick_device(a.serial))
     print("Телевизор перезагружается.")
@@ -663,6 +753,10 @@ def main(argv=None):
     c.add_argument("--off", action="store_true", help="убрать автозапуск")
     c.set_defaults(func=cmd_vpn)
 
+    c = sub.add_parser("game", help="игровой режим: подготовить ТВ и запустить Moonlight")
+    c.add_argument("--off", action="store_true", help="выйти из игрового режима (вернуть обход блокировок)")
+    c.set_defaults(func=cmd_game)
+
     sub.add_parser("reboot", help="перезагрузить ТВ").set_defaults(func=cmd_reboot)
 
     a = p.parse_args(argv)
@@ -680,6 +774,8 @@ MENU = (
     ("Установить все APK из папки apk", ["install"]),
     ("Перезагрузить телевизор", ["reboot"]),
     ("Вернуть всё как было", ["restore"]),
+    ("Игровой режим (Moonlight)", ["game"]),
+    ("Выйти из игрового режима", ["game", "--off"]),
 )
 
 
