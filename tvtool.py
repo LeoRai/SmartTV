@@ -80,8 +80,13 @@ def pick_device(serial):
     return devices[0]
 
 
+# Приложения, которые пользователь хочет сохранить при любой чистке.
+KEEP_KEYWORDS = ("kinopoisk",)
+
+
 def is_protected(pkg):
-    return any(pkg == p or pkg.startswith(p) for p in PROTECTED_PREFIXES)
+    return (any(pkg == p or pkg.startswith(p) for p in PROTECTED_PREFIXES)
+            or any(k in pkg for k in KEEP_KEYWORDS))
 
 
 def home_launcher(serial):
@@ -231,6 +236,26 @@ def cmd_install(a):
         print(f"  {'OK  ' if 'Success' in out else 'FAIL'} {os.path.basename(apk)}: {out.splitlines()[-1] if out else ''}")
 
 
+def cmd_vpn(a):
+    s = pick_device(a.serial)
+    if a.off:
+        shell(s, "settings delete secure always_on_vpn_app", check=False)
+        print("Автозапуск VPN отключён.")
+        return
+    pkg = a.package
+    if not pkg:
+        found = [p for p in list_packages(s, "-e") if "byedpi" in p.lower()]
+        if len(found) != 1:
+            die("укажите пакет VPN-приложения явно" if found else
+                "ByeDPI не найден. Установите APK: python tvtool.py install ByeByeDPI.apk")
+        pkg = found[0]
+    shell(s, f"settings put secure always_on_vpn_app {pkg}")
+    # Без lockdown: если обход упадёт, интернет не пропадёт полностью.
+    shell(s, "settings put secure always_on_vpn_lockdown 0", check=False)
+    print(f"{pkg} будет запускаться вместе с телевизором.")
+    print("Один раз откройте приложение на ТВ, нажмите «Подключить» и разрешите VPN-запрос.")
+
+
 def cmd_reboot(a):
     adb("reboot", serial=pick_device(a.serial))
     print("Телевизор перезагружается.")
@@ -269,6 +294,11 @@ def main():
     c = sub.add_parser("install", help="установить APK-файлы")
     c.add_argument("apks", nargs="+")
     c.set_defaults(func=cmd_install)
+
+    c = sub.add_parser("vpn", help="запускать обход блокировок (ByeDPI) при включении ТВ")
+    c.add_argument("package", nargs="?", help="пакет VPN-приложения (по умолчанию ищется ByeDPI)")
+    c.add_argument("--off", action="store_true", help="убрать автозапуск")
+    c.set_defaults(func=cmd_vpn)
 
     sub.add_parser("reboot", help="перезагрузить ТВ").set_defaults(func=cmd_reboot)
 
