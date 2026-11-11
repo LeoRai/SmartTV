@@ -1,6 +1,7 @@
--- Builds from Talents Forever (author: baldwinbuilds) — the only source of builds.
--- Data license: CC BY 4.0, attribution required (confirm with the author at stage 0).
--- Filled at stage 2 by tools/build_data.py (or read live from the Talents Forever addon).
+-- Builds from Talents Forever (author: baldwinbuilds, co-author of ForeverCoach) — the only source of builds.
+-- With the author's permission builds are read directly from the Talents Forever addon in game
+-- (stage 2, Integrations/TalentsForever.lua). This table holds the same entries in ForeverCoach's
+-- format: what the integration produces, and the fallback for builds pasted as links.
 --
 -- Entry:
 --   {

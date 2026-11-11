@@ -6,7 +6,7 @@
 
 ## Co-author
 
-- **Talents Forever** (baldwinbuilds) — builds, popularity, talent point order. The only source of builds in ForeverCoach. Data under CC BY 4.0, used with attribution (terms being confirmed with the author at stage 0).
+- **Talents Forever** (baldwinbuilds) — builds, popularity, talent point order. The only source of builds in ForeverCoach. With the author's permission, ForeverCoach reads builds directly from the Talents Forever addon in game; the author is credited as co-author in the addon description.
   [CurseForge](https://www.curseforge.com/wow/addons/talents-forever) · [talentsforever.com](https://talentsforever.com/popular)
 
 ## Sources
