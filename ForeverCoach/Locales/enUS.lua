@@ -258,6 +258,11 @@ L.P_NEW_AT = "New at level %d"
 L.P_NOTHING_NEW = "Nothing new at this level"
 L.P_RANKS_MORE = { "%d new rank", "%d new ranks", "%d new ranks" }
 L.P_ROTATION_AT = "Rotation at level %d"
+L.P_TALENTS_AT = "Build talents by level %d"
+L.P_TALENT_NOW = "%s %d/%d, now"
+L.P_TALENT_AT = "%s %d/%d, by level %d"
+L.P_TALENTS_NONE = "No new talent points by this level"
+L.P_TALENTS_NO_BUILD = "Choose a build in the Builds window: its talents for each level show here."
 L.P_QUESTS = "CLASS QUESTS"
 L.P_QUEST_DONE = "done"
 

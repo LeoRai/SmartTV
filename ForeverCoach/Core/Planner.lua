@@ -205,19 +205,71 @@ function Planner.NewAt(def, level, at, talents)
     return out
 end
 
+-- The chosen build's talent points from now up to level `at`, in the order the site places
+-- them (Builds.GuessOrder), skipping the points the player already has. By talent, in order:
+-- { { spellID, name, from, to, max, level (when it reaches `to`), now }, ... }, and the number
+-- of points. unspent: free points from the client (nil: counted from the level).
+Planner.MAX_POINTS = 51
+function Planner.TalentsAt(def, buildRanks, playerRanks, level, at, unspent)
+    local TF = ns.TalentsForever
+    local layout = TF and TF.Layout(def.token)
+    if not (layout and buildRanks) then return {}, 0 end
+    playerRanks = playerRanks or {}
+    local spent = 0
+    for _, r in pairs(playerRanks) do spent = spent + r end
+    if unspent == nil then unspent = math.max(0, level - 9 - spent) end
+    local counted, byId, out, points = {}, {}, {}, 0
+    for _, o in ipairs(ns.Builds.GuessOrder(layout, buildRanks)) do
+        local t = o.talent
+        local id = t.spell
+        counted[id] = (counted[id] or 0) + 1
+        if counted[id] > (playerRanks[id] or 0) then
+            local pointLevel = points < unspent and level or level + (points + 1 - unspent)
+            if pointLevel > at or spent + points >= Planner.MAX_POINTS then break end
+            points = points + 1
+            local e = byId[id]
+            if not e then
+                e = { spellID = id, name = API.SpellName(id) or t.name, from = playerRanks[id] or 0, max = t.max or 1 }
+                byId[id] = e
+                out[#out + 1] = e
+            end
+            e.to, e.level, e.now = counted[id], pointLevel, pointLevel <= level
+        end
+    end
+    return out, points
+end
+
+-- Talent ranks (our keys) the player will have at level `at` with the build's plan.
+function Planner.TalentKeysAt(def, current, planned)
+    local out = {}
+    for key, rank in pairs(current or {}) do out[key] = rank end
+    for _, e in ipairs(planned or {}) do
+        for key, t in pairs(def.talents or {}) do
+            if t.ids[1] == e.spellID and (out[key] or 0) < e.to then out[key] = e.to end
+        end
+    end
+    return out
+end
+
 -- The rotation the engine would suggest at another level: a fresh fight on a healthy target, all
--- trainer ranks up to that level, the current talents and demon. Uses its own engine instance.
+-- trainer ranks up to that level, the talents (current, or `talents` planned for that level) and
+-- demon. Uses its own engine instance.
 local previewEngine = {}
-function Planner.RotationAt(def, prepared, at, s, depth)
+function Planner.RotationAt(def, prepared, at, s, depth, talents)
     if not prepared then return {} end
+    talents = talents or s.talents
     local known, knownRank, castTime = {}, {}, {}
     for key, sp in pairs(def.spells) do
         for i = #sp.ranks, 1, -1 do
             local r = sp.ranks[i]
             local src = srcOf(sp, r)
             local ok = r[2] <= at and src ~= "book" and not sp.pet
-            if sp.talent then ok = ok and (s.talents[sp.talent] or 0) > 0 end
-            if src == "talent" then ok = (s.knownRank[key] or 0) >= i end
+            if sp.talent then
+                -- a talent's spell: from the talent on, when the talents for that level have it
+                ok = ok and (talents[sp.talent] or 0) > 0
+            elseif src == "talent" then
+                ok = (s.knownRank[key] or 0) >= i
+            end
             if ok then
                 known[key], knownRank[key] = r[1], i
                 castTime[key] = s.castTime and s.castTime[key] or Data.Cast(sp, i)
@@ -226,7 +278,7 @@ function Planner.RotationAt(def, prepared, at, s, depth)
         end
     end
     local snap = {
-        now = 0, def = def, known = known, knownRank = knownRank, castTime = castTime, talents = s.talents,
+        now = 0, def = def, known = known, knownRank = knownRank, castTime = castTime, talents = talents,
         trainer = 0, mode = ns.Modes.current, last = {}, gcd = def.gcd or 1.5, gcdEnd = 0, opt = s.opt or {},
         player = { level = at, hp_pct = 100, mana_pct = 100, in_combat = true, oom = false },
         target = { exists = true, enemy = true, hp_pct = 100, ttd = 999, in_range = true },

@@ -152,3 +152,62 @@ describe("Planner window", function()
         assert.matches("next at level 16", m.trainer.sub)
     end)
 end)
+
+describe("Planner: the chosen build's plan by level", function()
+    local ns, W, PW
+    local NF, SL = 18094, 18265 -- Nightfall, Siphon Life (IC: Improved Corruption, above)
+    before_each(function()
+        _G.TalentsForeverBookData = tf.data()
+        ns, W = addon.load()
+        PW = ns.PlannerWindow
+        addon.learnUpTo(ns, W, 12)
+        W.traits = { [IC] = 3 }
+        addon.rescan(ns)
+        addon.compute(ns, W)
+    end)
+    after_each(function() _G.TalentsForeverBookData = nil end)
+
+    it("places the build's points level by level, in the site's order", function()
+        local def = ns.Data.class
+        local build = { [IC] = 5, [NF] = 2, [SL] = 1 }
+        local plan, points = ns.Planner.TalentsAt(def, build, { [IC] = 3 }, 12, 16)
+        assert.equal(4, points) -- one point per level 13..16
+        assert.equal(IC, plan[1].spellID)
+        assert.equal(3, plan[1].from)
+        assert.equal(5, plan[1].to)
+        assert.equal(14, plan[1].level)
+        assert.equal(NF, plan[2].spellID)
+        assert.equal(2, plan[2].to)
+        assert.equal(16, plan[2].level)
+        -- a free point now moves everything a level earlier
+        plan, points = ns.Planner.TalentsAt(def, build, { [IC] = 3 }, 12, 16, 1)
+        assert.equal(5, points)
+        assert.equal(SL, plan[3].spellID)
+        -- the talents then, by our keys
+        local keys = ns.Planner.TalentKeysAt(def, { nightfall = 0 }, plan)
+        assert.equal(2, keys.nightfall)
+        assert.equal(1, keys.siphon_life)
+    end)
+
+    it("shows the plan in the level preview and plays the rotation with those talents", function()
+        assert.equal(ns.L.P_TALENTS_NO_BUILD, PW:Model().talentNote) -- no build chosen yet
+        local list = ns.Builds.List("leveling", W.traits)
+        ns.Builds.Choose(list[1]) -- Affliction 8 / 1 / 0: Improved Corruption, Nightfall, Siphon Life, ...
+        PW:SetLevel(18) -- offered at level 12: 12, 14, 18, 20, 24, 30
+        local m = PW:Model()
+        assert.is_nil(m.talentNote)
+        assert.same({ "spell17810 5/5, by level 14", "spell18094 2/2, by level 16", "spell18265 1/1, by level 17",
+                      "spell18788 1/1, by level 18" }, m.talents)
+        PW:SetLevel(12) -- the current level: no free point
+        assert.equal(ns.L.P_TALENTS_NONE, PW:Model().talentNote)
+        -- level 30: Siphon Life comes from the build's talent, the preview rotation uses it
+        local def, s = ns.Data.class, ns.State.snapshot
+        local plan = ns.Planner.TalentsAt(def, ns.TalentsForever.Decode("WARLOCK", list[1].code), W.traits, 12, 30)
+        local rot = ns.Planner.RotationAt(def, ns.Loop.current, 30, s, 4, ns.Planner.TalentKeysAt(def, s.talents, plan))
+        assert.equal("siphon_life", rot[1].key)
+        local without = ns.Planner.RotationAt(def, ns.Loop.current, 30, s, 4)
+        for _, r in ipairs(without) do assert.are_not.equal("siphon_life", r.key) end
+        PW:Toggle()
+        PW:Draw()
+    end)
+end)

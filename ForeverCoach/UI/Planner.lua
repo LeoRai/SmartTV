@@ -16,7 +16,7 @@ local WIDTH, HEIGHT = 840, 620
 local LEFT_X, LEFT_W = 22, 480
 local RIGHT_X, RIGHT_W = 520, 298
 local NEED_ROWS, NEED_H, NEED_GAP = 7, 50, 7
-local NEW_LINES, ROTATION, QUESTS, LEVELS = 3, 4, 4, 6
+local NEW_LINES, TALENT_LINES, ROTATION, QUESTS, LEVELS = 2, 3, 4, 4, 6
 
 local STATUS_COLOR = { trainer = C.gold, talent = C.proc, nobar = C.danger, level = C.muted, quest = C.teal }
 
@@ -171,8 +171,26 @@ function PlannerWindow:Model()
             m.newRanks = m.newRanks + 1
         end
     end
+    -- The chosen build's talents up to that level, and the rotation with them.
+    local planned
+    if ranks then
+        local TF = ns.TalentsForever
+        local unspent = API.TalentPoints(TF.TreeID(def.token))
+        local points
+        planned, points = Planner.TalentsAt(def, ranks, ns.State.traits or {}, level, at, unspent)
+        m.talents = {}
+        for i, e in ipairs(planned) do
+            m.talents[i] = e.now and string.format(L.P_TALENT_NOW, e.name, e.to, e.max)
+                or string.format(L.P_TALENT_AT, e.name, e.to, e.max, e.level)
+        end
+        m.talentPoints = points
+        if points == 0 then m.talentNote = L.P_TALENTS_NONE end
+    else
+        m.talentNote = L.P_TALENTS_NO_BUILD
+    end
+    local talentsThen = planned and Planner.TalentKeysAt(def, s.talents, planned) or nil
     m.rotation = {}
-    for i, r in ipairs(Planner.RotationAt(def, ns.Loop.current, at, s, ROTATION)) do
+    for i, r in ipairs(Planner.RotationAt(def, ns.Loop.current, at, s, ROTATION, talentsThen)) do
         m.rotation[i] = { key = r.key, id = r.id, texture = API.SpellTexture(r.id) }
     end
 
@@ -240,7 +258,7 @@ function PlannerWindow:Create()
     f.needsNone:SetPoint("TOPLEFT", LEFT_X, -176)
 
     -- Level preview
-    local pv = W.Panel(f, RIGHT_W, 306)
+    local pv = W.Panel(f, RIGHT_W, 352)
     pv:SetPoint("TOPLEFT", RIGHT_X, -66)
     local pvTitle = W.Section(pv, L.P_PREVIEW)
     pvTitle:SetPoint("TOPLEFT", 18, -18)
@@ -268,16 +286,33 @@ function PlannerWindow:Create()
         text:SetWordWrap(false)
         pv.lines[i] = { mark = mark, text = text }
     end
+    -- The chosen build's talents up to that level
+    pv.talTitle = W.Font(pv, 12, C.muted)
+    pv.talTitle:SetPoint("TOPLEFT", 18, -184)
+    pv.talents = {}
+    for i = 1, TALENT_LINES do
+        local mark = W.Font(pv, 13, C.proc)
+        mark:SetPoint("TOPLEFT", 18, -204 - (i - 1) * 22)
+        mark:SetText("+")
+        local text = W.Font(pv, 13, C.text)
+        text:SetPoint("TOPLEFT", 34, -204 - (i - 1) * 22)
+        text:SetWidth(RIGHT_W - 52)
+        text:SetWordWrap(false)
+        pv.talents[i] = { mark = mark, text = text }
+    end
+    pv.talNote = W.Font(pv, 12, C.muted)
+    pv.talNote:SetPoint("TOPLEFT", 18, -204)
+    pv.talNote:SetWidth(RIGHT_W - 36)
     pv.rotTitle = W.Font(pv, 12, C.muted)
-    pv.rotTitle:SetPoint("TOPLEFT", 18, -210)
+    pv.rotTitle:SetPoint("TOPLEFT", 18, -280)
     pv.rotation, pv.arrows = {}, {}
     for i = 1, ROTATION do
         local icon = W.Icon(pv, 30)
-        icon:SetPoint("TOPLEFT", 18 + (i - 1) * 48, -232)
+        icon:SetPoint("TOPLEFT", 18 + (i - 1) * 48, -302)
         pv.rotation[i] = icon
         if i > 1 then
             local arrow = W.Arrow(pv)
-            arrow:SetPoint("CENTER", pv, "TOPLEFT", 18 + (i - 1) * 48 - 9, -247)
+            arrow:SetPoint("CENTER", pv, "TOPLEFT", 18 + (i - 1) * 48 - 9, -317)
             pv.arrows[i] = arrow
         end
     end
@@ -285,7 +320,7 @@ function PlannerWindow:Create()
 
     -- Class quests
     local qs = W.Panel(f, RIGHT_W, 148)
-    qs:SetPoint("TOPLEFT", RIGHT_X, -386)
+    qs:SetPoint("TOPLEFT", RIGHT_X, -432)
     local qsTitle = W.Section(qs, L.P_QUESTS)
     qsTitle:SetPoint("TOPLEFT", 18, -18)
     qs.rows = {}
@@ -365,6 +400,17 @@ function PlannerWindow:Draw()
         line.text:SetShown(lines[i] ~= nil)
         line.text:SetText(lines[i] or "")
     end
+    pv.talTitle:SetText(string.format(L.P_TALENTS_AT, m.at))
+    local tal = m.talents or {}
+    for i, line in ipairs(pv.talents) do
+        local text = tal[i]
+        if i == TALENT_LINES and #tal > TALENT_LINES then text = string.format(L.P_MORE, #tal - TALENT_LINES + 1) end
+        line.mark:SetShown(text ~= nil and not m.talentNote)
+        line.text:SetShown(text ~= nil and not m.talentNote)
+        line.text:SetText(text or "")
+    end
+    pv.talNote:SetShown(m.talentNote ~= nil)
+    pv.talNote:SetText(m.talentNote or "")
     pv.rotTitle:SetText(string.format(L.P_ROTATION_AT, m.at))
     for i, icon in ipairs(pv.rotation) do
         local r = m.rotation[i]
