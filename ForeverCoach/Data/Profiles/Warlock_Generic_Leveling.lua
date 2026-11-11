@@ -20,7 +20,7 @@ ns.Data:DefineProfile("WARLOCK", function()
             { "shadow_bolt", "buff.shadow_trance.up", why = "WHY_PROC", glow = true },
             { "hellfire", "enemies >= 3 & player.hp_pct > 50", why = "WHY_AOE_HELLFIRE" },
             { "rain_of_fire", "enemies >= 3 & !known.hellfire", why = "WHY_AOE_RAIN" },
-            { "life_tap", "(player.mana_pct < player.hp_pct - opt.tap | player.oom) & player.hp_pct > opt.hp", why = "WHY_LIFE_TAP" },
+            { "life_tap", "player.oom & player.hp_pct > opt.hp", why = "WHY_LIFE_TAP" },
             { "drain_life", "player.hp_pct < 40", why = "WHY_DRAIN_LIFE" },
             { "curse_of_agony", "debuff.curse_of_agony.refreshable & target.ttd > 10", why = "WHY_CURSE" },
             { "curse_of_weakness", "!known.curse_of_agony & debuff.curse_of_weakness.down & target.ttd > 10", why = "WHY_CURSE" },

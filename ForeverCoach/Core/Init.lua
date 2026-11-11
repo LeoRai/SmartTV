@@ -26,7 +26,7 @@ end
 
 -- Settings kept per character (SavedVariablesPerCharacter: ForeverCoachCharDB).
 ns.Defaults = {
-    schema = 2,
+    schema = 3,
     shown = true,            -- the "show or hide hints" key
     hideOutOfCombat = true,  -- out of combat only the preparation line stays
     highlightBar = true,     -- gold frame on the action bar button of the main hint
@@ -38,7 +38,6 @@ ns.Defaults = {
     alpha = 1.0,
     pos = { point = "CENTER", x = 0, y = -170 },
     mode = "auto",           -- auto | leveling | group | pvp
-    lifeTapGap = 20,         -- Life Tap when mana is this many % below health
     hpThreshold = 35,        -- defense slot: player health, %
     petHpThreshold = 40,     -- defense slot: demon health, %
     shards = 3,              -- Soul Shards to keep
@@ -55,6 +54,9 @@ local function migrate(db)
     if (db.schema or 1) < 2 then
         db.nextIcons, db.hideOutOfCombat = 3, true -- the block now shows the rotation ahead
         db.scale, db.sound = nil, nil              -- replaced by iconSize and two sound settings
+    end
+    if (db.schema or 1) < 3 then
+        db.lifeTapGap = nil -- Forever hides mana and health: Life Tap goes by "out of mana" only
     end
     db.schema = ns.Defaults.schema
     return db

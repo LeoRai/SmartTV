@@ -58,7 +58,7 @@ local COOLDOWN = set("ready", "remains")
 local ITEM = set("count", "ready")
 local GCD = set("remains", "duration")
 local MODES = set("leveling", "group", "pvp")
-local OPTS = set("hp", "pet_hp", "shards", "tap")
+local OPTS = set("hp", "pet_hp", "shards")
 
 local function auraRemains(ctx, overlay, base, key)
     local exp = overlay[key]

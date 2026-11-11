@@ -181,7 +181,7 @@ function State:Refresh(now)
 
     local db = ns.db or ns.Defaults
     local opt = s.opt
-    opt.hp, opt.pet_hp, opt.shards, opt.tap = db.hpThreshold, db.petHpThreshold, db.shards, db.lifeTapGap
+    opt.hp, opt.pet_hp, opt.shards = db.hpThreshold, db.petHpThreshold, db.shards
 
     -- Player ---------------------------------------------------------------
     local p = s.player

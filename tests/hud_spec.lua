@@ -105,15 +105,12 @@ describe("Block", function()
         assert.equal("rain_of_fire", r.main[1].action)
     end)
 
-    it("taps life when mana is lower than health by the threshold", function()
+    it("taps life only when the next spell is out of mana", function()
         addon.learnUpTo(ns, W, 20)
         fight(W)
-        W.player.mana = 50
-        assert.equal("life_tap", addon.compute(ns, W).main[1].action)
-        W.player.mana = 85
+        W.player.mana = 10 -- low, but the client still says the spells are castable
         assert.are_not.equal("life_tap", addon.compute(ns, W).main[1].action)
-        ns.db.lifeTapGap = 10
-        W.player.mana = 85
+        for _, id in ipairs({ 1088, 1094, 6222, 1014 }) do W.usable[id] = false; W.noMana[id] = true end
         assert.equal("life_tap", addon.compute(ns, W).main[1].action)
     end)
 
@@ -149,11 +146,12 @@ describe("Block", function()
     end)
 
     it("moves old settings to the new layout", function()
-        local db = ns.Migrate({ schema = 1, nextIcons = 1, scale = 1.2, sound = true, hideOutOfCombat = false })
+        local db = ns.Migrate({ schema = 1, nextIcons = 1, scale = 1.2, sound = true, hideOutOfCombat = false, lifeTapGap = 20 })
         assert.equal(3, db.nextIcons)
         assert.is_true(db.hideOutOfCombat)
         assert.is_nil(db.scale)
         assert.is_nil(db.sound)
-        assert.equal(2, db.schema)
+        assert.is_nil(db.lifeTapGap)
+        assert.equal(3, db.schema)
     end)
 end)

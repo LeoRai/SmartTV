@@ -78,7 +78,6 @@ function SettingsWindow:Create()
     -- THRESHOLDS ----------------------------------------------------------------
     at(W.Section(f, L.S_SECTION_THRESHOLDS), f, RIGHT, -74)
     local rows = {
-        { L.S_TAP, "lifeTapGap", 0, 90, true },
         { L.S_HP, "hpThreshold", 5, 90, true },
         { L.S_PET_HP, "petHpThreshold", 5, 90, true },
         { L.S_SHARDS, "shards", 0, 30, false },
@@ -94,37 +93,37 @@ function SettingsWindow:Create()
     end
 
     -- SOUND ---------------------------------------------------------------------
-    at(W.Section(f, L.S_SECTION_SOUND), f, RIGHT, -268)
+    at(W.Section(f, L.S_SECTION_SOUND), f, RIGHT, -228)
     local sounds = {
         { L.S_SOUND_READY, "soundReady", "soundReadyVolume", "ready" },
         { L.S_SOUND_PROC, "soundProc", "soundProcVolume", "proc" },
     }
     for i, snd in ipairs(sounds) do
-        local y = -294 - (i - 1) * 66
+        local y = -254 - (i - 1) * 66
         at(add(W.Check(f, snd[1], getter(snd[2]), setter(snd[2]))), f, RIGHT, y)
         at(W.PlayButton(f, function() ns.Sounds:Play(snd[4], true) end), f, RIGHT + COL - 28, y + 5)
         at(add(W.Slider(f, COL - 26, L.S_VOLUME, L.S_PERCENT, 0, 100, 5, getter(snd[3]), setter(snd[3]), true)),
             f, RIGHT + 26, y - 30)
     end
-    local note = at(W.Font(f, 12, C.muted), f, RIGHT, -430)
+    local note = at(W.Font(f, 12, C.muted), f, RIGHT, -390)
     note:SetWidth(COL)
     note:SetText(L.S_SOUND_NOTE)
 
     -- KEYS ----------------------------------------------------------------------
-    at(W.Section(f, L.S_SECTION_KEYS), f, RIGHT, -468)
+    at(W.Section(f, L.S_SECTION_KEYS), f, RIGHT, -428)
     local keyRows = {
         { L.S_KEY_TOGGLE, { "FOREVERCOACH_TOGGLE" } },
         { L.S_KEY_WINDOWS, { "FOREVERCOACH_BUILDS", "FOREVERCOACH_PLAN", "FOREVERCOACH_RECAP" } },
     }
     for i, row in ipairs(keyRows) do
-        local y = -494 - (i - 1) * 26
+        local y = -454 - (i - 1) * 26
         at(W.Font(f, 13, C.text), f, RIGHT, y):SetText(row[1])
         local value = W.Font(f, 13, C.muted)
         value:SetPoint("TOPRIGHT", f, "TOPLEFT", RIGHT + COL, y)
         value:SetJustifyH("RIGHT")
         add({ refresh = function() value:SetText(bindingText(unpack(row[2]))) end })
     end
-    at(W.Button(f, L.S_OPEN_KEYS, 208, false, openKeyBindings), f, RIGHT, -548)
+    at(W.Button(f, L.S_OPEN_KEYS, 208, false, openKeyBindings), f, RIGHT, -508)
 
     -- Footer --------------------------------------------------------------------
     local footer = W.Font(f, 12, C.muted)
