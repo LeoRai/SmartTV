@@ -345,7 +345,7 @@ function HUD:ShowPrep(r, centered)
     local place = r.prepPlace == "trainer" and ns.db.trainerPlace or nil
     p.trainer = r.prepPlace == "trainer"
     p:EnableMouse(p.trainer)
-    p.place:SetText(place and ("· " .. place) or "")
+    p.place:SetText(place and ("— " .. place) or "")
     p.extraWidth = 18 + (place and (p.place:GetStringWidth() + 4) or 0)
     fitPill(p, 12, 30)
     p:ClearAllPoints()

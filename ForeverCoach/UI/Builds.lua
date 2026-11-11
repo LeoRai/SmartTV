@@ -60,7 +60,7 @@ local function compareLines(build)
     local c = ns.Builds.Compare(build.ranks or {}, playerRanks(), playerLevel(), unspent)
     local first
     if c.spent == 0 then
-        first = { mark = "·", color = C.muted, text = L.B_NO_POINTS }
+        first = { mark = "dot", color = C.muted, text = L.B_NO_POINTS }
     elseif c.all then
         first = { mark = "check", color = C.good, text = ns.Count(c.spent, L.B_ALL_MATCH) }
     else
@@ -323,7 +323,7 @@ function BuildsWindow:Draw()
     local f = self.frame
     if not f then return end
     local m = self:Model()
-    f.subtitle:SetText("· " .. m.className)
+    f.subtitle:SetText("— " .. m.className)
     f.tabs.refresh()
     f.input:SetShown(self.pasting and true or false)
     f.note:SetShown(not self.pasting)

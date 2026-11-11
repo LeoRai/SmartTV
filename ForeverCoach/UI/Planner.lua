@@ -82,7 +82,7 @@ local function needRow(item, level)
     row.name = name
     local n = note(item.key)
     if item.status == "trainer" then
-        row.sub = Planner.Money(item.cost) .. (n and (" · " .. n) or "")
+        row.sub = Planner.Money(item.cost) .. (n and (" — " .. n) or "")
         row.pill = L.P_ST_trainer
     elseif item.status == "talent" then
         if item.key:find("^talent:") then
@@ -116,8 +116,8 @@ function PlannerWindow:Model()
     m.level = level
 
     local lead, pts, chosen = buildOf(def)
-    m.subtitle = "· " .. string.format(L.P_LEVEL, level)
-    if lead then m.subtitle = m.subtitle .. " · " .. treeName(lead) .. " " .. ptsText(pts) end
+    m.subtitle = "— " .. string.format(L.P_LEVEL, level)
+    if lead then m.subtitle = m.subtitle .. ", " .. treeName(lead) .. " " .. ptsText(pts) end
 
     -- Trainer
     local sum = Planner.TrainerSummary(def, level, s.knownRank, s.talents)
@@ -139,7 +139,7 @@ function PlannerWindow:Model()
     else
         t.where = L.P_TRAINER_UNKNOWN
     end
-    t.sub = t.price and (t.price .. " · " .. t.where) or t.where
+    t.sub = t.price and (t.price .. " — " .. t.where) or t.where
     m.trainer = t
 
     -- What the rotation needs

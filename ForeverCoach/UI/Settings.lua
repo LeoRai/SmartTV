@@ -34,7 +34,7 @@ local function bindingText(...)
         if key then keys[#keys + 1] = GetBindingText and GetBindingText(key) or key end
     end
     if #keys == 0 then return L.S_KEY_NONE end
-    return table.concat(keys, " · ")
+    return table.concat(keys, ", ")
 end
 
 local function openKeyBindings()

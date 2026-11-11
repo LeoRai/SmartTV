@@ -31,7 +31,7 @@ ns.Data:DefineProfile("WARLOCK", function()
         version = "0.1.0", patch = "1.60.1", date = "2026-11-11",
         talents = { nightfall = 1, siphon_life = 1 },  -- ключевые таланты билда
         approximate = false,                 -- true для общих правил класса
-        aoe = true,                          -- метка «AoE · N врагов» от 3 врагов
+        aoe = true,                          -- метка «AoE: N врагов» от 3 врагов
 
         main     = { { "corruption", "debuff.corruption.refreshable & target.ttd > 8", why = "WHY_DOT" }, ... },
         defense  = { { "healthstone", "player.hp_pct < opt.hp", why = "WHY_HEALTHSTONE" }, ... },
