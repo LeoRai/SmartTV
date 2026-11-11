@@ -171,7 +171,7 @@ function State:Refresh(now)
 
     local db = ns.db or ns.Defaults
     local opt = s.opt
-    opt.hp, opt.pet_hp, opt.shards = db.hpThreshold, db.petHpThreshold, db.shards
+    opt.hp, opt.pet_hp, opt.shards, opt.tap = db.hpThreshold, db.petHpThreshold, db.shards, db.lifeTapGap
 
     -- Player ---------------------------------------------------------------
     local p = s.player
@@ -192,12 +192,13 @@ function State:Refresh(now)
     p.moving = API.IsMoving() or false
 
     -- Current cast: the client first, own tracking second.
-    local castID, castEnd, channel = API.PlayerCast()
-    s.castKey, s.castEnd, s.castChannel = nil, nil, nil
+    local castID, castEnd, channel, castStart = API.PlayerCast()
+    s.castKey, s.castStart, s.castEnd, s.castChannel = nil, nil, nil, nil
     if castID and def.byId[castID] then
-        s.castKey, s.castEnd, s.castChannel = def.byId[castID].key, castEnd, channel
+        s.castKey, s.castStart, s.castEnd, s.castChannel = def.byId[castID].key, castStart, castEnd, channel
     elseif not castID and Timers.cast and Timers.cast.endTime > now then
-        s.castKey, s.castEnd, s.castChannel = Timers.cast.key, Timers.cast.endTime, Timers.cast.channel
+        local c = Timers.cast
+        s.castKey, s.castStart, s.castEnd, s.castChannel = c.key, c.startTime, c.endTime, c.channel
     end
     p.casting = s.castKey ~= nil
 
@@ -351,6 +352,14 @@ local function newCombat(self) self.auraConfirmed = false end
 Events:On("PLAYER_REGEN_DISABLED", State, newCombat)
 Events:On("PLAYER_REGEN_ENABLED", State, newCombat)
 Events:On("PLAYER_ENTERING_WORLD", State, newCombat)
+-- Class trainers the player visits: the preparation line names the last one ("· Brill").
+-- Stage 2 adds the nearest trainer from Data/Trainers.lua.
+Events:On("TRAINER_SHOW", State, function()
+    if IsTradeskillTrainer and API.Clean(IsTradeskillTrainer()) then return end
+    local place = GetSubZoneText and API.Clean(GetSubZoneText())
+    if not place or place == "" then place = GetRealZoneText and API.Clean(GetRealZoneText()) end
+    if place and place ~= "" and ns.db then ns.db.trainerPlace = place end
+end)
 Events:On("BAG_UPDATE_DELAYED", State, function(self)
     self.itemsDirty = true
     Events:Fire("FC_DIRTY")

@@ -1,17 +1,29 @@
--- The on-screen block: about four icons wide, dark and minimal.
---   [defense] [ MAIN ] [next] [next] [cooldown]
---               AoE (above main, 3+ enemies when the profile switches to AoE)
---          preparation line (below, out of combat only)
--- In combat only the main icon is always there; everything else shows up only when needed.
--- Nothing ever pops up by itself in combat: windows open on their own keys.
+-- The on-screen block, as in the mockup "Блок подсказок: состояния":
+--
+--              [ AoE · 4 врага ]                    (3+ enemies, AoE profile)
+--   [defense]  [ MAIN ] [next] [next] [next]  [cooldown]
+--     31%                                       ready
+--          [ + Spells waiting at the trainer · Brill ]   (out of combat only)
+--
+-- Main icon: real spell icon from the client, key in the corner, the global cooldown and the
+-- spell's cooldown fill clockwise like on action bars (CooldownFrameTemplate), gold frame when
+-- it is time to press, violet glow on an instant proc. Each next icon is paler than the last.
+-- Defense (left) and cooldown (right) slots, the AoE label and the sounds appear only when needed.
+-- Nothing pops up in combat by itself; the windows open on their own keys.
 local ADDON, ns = ...
-local L, API = ns.L, ns.API
+local L, API, W = ns.L, ns.API, ns.Widgets
+local C = W.C
 
-local HUD = { icons = {} }
+local HUD = { next = {} }
 ns.HUD = HUD
 
-local MAIN, SMALL, GAP = 48, 32, 4
+local BASE = 56                        -- the mockup's main icon size, px
+local NEXT_ALPHA = { 0.9, 0.72, 0.55 } -- each next icon paler
 local QUESTION = "Interface\\Icons\\INV_Misc_QuestionMark"
+local GLOW = "Interface\\Buttons\\UI-ActionButton-Border"
+local COOLDOWN_SLOT = { 0.788, 0.635, 0.243 } -- #C9A23E
+
+local function px(v) return math.floor(v * ns.db.iconSize / BASE + 0.5) end
 
 local textureCache = {}
 local function textureFor(rec)
@@ -31,7 +43,7 @@ local function textureFor(rec)
 end
 
 ---------------------------------------------------------------------------
--- Icons
+-- Tooltip: why this action
 ---------------------------------------------------------------------------
 
 local function onEnter(self)
@@ -56,45 +68,55 @@ end
 
 local function onLeave() GameTooltip:Hide() end
 
-local function createIcon(parent, size)
-    local f = CreateFrame("Frame", nil, parent)
-    f:SetSize(size, size)
-    local bg = f:CreateTexture(nil, "BACKGROUND")
-    bg:SetPoint("TOPLEFT", -1, 1)
-    bg:SetPoint("BOTTOMRIGHT", 1, -1)
-    bg:SetColorTexture(0, 0, 0, 0.85)
+---------------------------------------------------------------------------
+-- Icons
+---------------------------------------------------------------------------
+
+local function createIcon(parent, withCooldown)
+    local f = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    W.Box(f, C.panel, C.border)
     f.icon = f:CreateTexture(nil, "ARTWORK")
-    f.icon:SetAllPoints()
+    f.icon:SetPoint("TOPLEFT", 1, -1)
+    f.icon:SetPoint("BOTTOMRIGHT", -1, 1)
     f.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
 
-    f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
-    f.cd:SetAllPoints()
-    if f.cd.SetDrawEdge then f.cd:SetDrawEdge(false) end
-    if f.cd.SetHideCountdownNumbers then f.cd:SetHideCountdownNumbers(true) end
+    if withCooldown then
+        f.cd = CreateFrame("Cooldown", nil, f, "CooldownFrameTemplate")
+        f.cd:SetPoint("TOPLEFT", 1, -1)
+        f.cd:SetPoint("BOTTOMRIGHT", -1, 1)
+        if f.cd.SetDrawEdge then f.cd:SetDrawEdge(false) end
+        if f.cd.SetDrawBling then f.cd:SetDrawBling(false) end
+        if f.cd.SetSwipeColor then f.cd:SetSwipeColor(0, 0, 0, 0.62) end
+        if f.cd.SetHideCountdownNumbers then f.cd:SetHideCountdownNumbers(true) end
+    end
 
     local top = CreateFrame("Frame", nil, f)
     top:SetAllPoints()
-    top:SetFrameLevel(f.cd:GetFrameLevel() + 2)
-    f.key = top:CreateFontString(nil, "OVERLAY", "NumberFontNormalSmallGray")
-    f.key:SetPoint("TOPRIGHT", -2, -2)
-    f.timer = top:CreateFontString(nil, "OVERLAY", size >= MAIN and "GameFontHighlightLarge" or "GameFontHighlight")
-    f.timer:SetPoint("CENTER")
+    top:SetFrameLevel(f:GetFrameLevel() + 3)
+    f.key = top:CreateFontString(nil, "OVERLAY")
+    f.key:SetPoint("BOTTOMRIGHT", -3, 2)
 
-    f.glow = top:CreateTexture(nil, "OVERLAY")
-    f.glow:SetTexture("Interface\\Buttons\\UI-ActionButton-Border")
+    -- State frame: gold (time to press), violet (proc), red (defense), dark gold (cooldown).
+    f.ring = CreateFrame("Frame", nil, f, "BackdropTemplate")
+    f.ring:SetPoint("TOPLEFT", -3, 3)
+    f.ring:SetPoint("BOTTOMRIGHT", 3, -3)
+    f.ring:SetFrameLevel(f:GetFrameLevel() + 2)
+    f.ring:Hide()
+    f.glow = f:CreateTexture(nil, "BACKGROUND", nil, -8)
+    f.glow:SetTexture(GLOW)
     f.glow:SetBlendMode("ADD")
     f.glow:SetPoint("CENTER")
-    f.glow:SetSize(size * 1.8, size * 1.8)
-    f.glow:SetVertexColor(1, 0.8, 0.3)
     f.glow:Hide()
     f.pulse = f.glow:CreateAnimationGroup()
     f.pulse:SetLooping("BOUNCE")
     local fade = f.pulse:CreateAnimation("Alpha")
     fade:SetFromAlpha(1)
-    fade:SetToAlpha(0.35)
+    fade:SetToAlpha(0.4)
     fade:SetDuration(0.45)
 
-    -- Hover explains the hint; clicks go through to the world where the client allows it.
+    f.label = parent:CreateFontString(nil, "OVERLAY")
+    f.label:SetPoint("TOP", f, "BOTTOM", 0, -5)
+
     f:EnableMouse(true)
     if f.SetMouseClickEnabled then f:SetMouseClickEnabled(false) end
     f:SetScript("OnEnter", onEnter)
@@ -103,22 +125,42 @@ local function createIcon(parent, size)
     return f
 end
 
-local function setGlow(f, on)
-    if on then
-        if not f.glow:IsShown() then f.glow:Show(); f.pulse:Play() end
+local function sizeIcon(f, size, keySize)
+    f:SetSize(size, size)
+    f.key:SetFont(STANDARD_TEXT_FONT, keySize, "OUTLINE")
+    f.label:SetFont(STANDARD_TEXT_FONT, math.max(9, px(11)), "")
+    f.glow:SetSize(size * 1.75, size * 1.75)
+end
+
+-- color = nil hides the frame; glowAlpha > 0 adds a soft glow; pulse animates it.
+local function setRing(f, color, glowAlpha, pulse)
+    if not color then
+        f.ring:Hide()
+        if f.glow:IsShown() then f.pulse:Stop(); f.glow:Hide() end
+        f.ringColor = nil
+        return
+    end
+    if f.ringColor ~= color then
+        W.Box(f.ring, { 0, 0, 0 }, color, 2, 0)
+        f.glow:SetVertexColor(color[1], color[2], color[3])
+        f.ringColor = color
+    end
+    f.ring:Show()
+    if glowAlpha and glowAlpha > 0 then
+        f.glow:SetAlpha(glowAlpha)
+        if not f.glow:IsShown() then f.glow:Show() end
+        if pulse and not f.pulse:IsPlaying() then f.pulse:Play() end
+        if not pulse and f.pulse:IsPlaying() then f.pulse:Stop() end
     elseif f.glow:IsShown() then
         f.pulse:Stop(); f.glow:Hide()
     end
 end
 
--- Show a recommendation on an icon. rec may be nil (empty slot).
-local function setIcon(f, rec, now, withTimer)
+local function setIcon(f, rec)
     f.rec = rec
     if not rec or not rec.id then
         f.icon:SetTexture(nil)
         f.key:SetText("")
-        f.timer:SetText("")
-        setGlow(f, false)
         return
     end
     f.icon:SetTexture(textureFor(rec))
@@ -130,21 +172,37 @@ local function setIcon(f, rec, now, withTimer)
         f.icon:SetVertexColor(1, 1, 1)
     end
     f.key:SetText(ns.ActionBars:KeyFor(rec.action) or "")
-    setGlow(f, rec.glow)
-    if withTimer then
-        local wait = rec.wait or 0
-        f.timer:SetText(wait >= 0.3 and string.format("%.1f", wait) or "")
-        -- Swirl until the action is available (global cooldown, cast in progress).
-        if wait > 0.05 then
-            if not f.cdEnd or math.abs(f.cdEnd - rec.at) > 0.05 then
-                f.cdEnd = rec.at
-                f.cd:SetCooldown(now, wait)
-            end
-        elseif f.cdEnd then
-            f.cdEnd = nil
-            f.cd:Clear()
-        end
+end
+
+-- The main icon's swirl: the client's own cooldown of that spell (global cooldown included),
+-- exactly as its action button shows it; our own global cooldown timer when the client won't say.
+local function showCooldown(f, rec, s, now)
+    if not rec or not rec.id then
+        f.cd:Clear()
+        return
     end
+    if rec.kind == "spell" and API.ShowSpellCooldown(f.cd, rec.id) then return end
+    if rec.kind == "item" then
+        local start, duration = API.ItemCooldown(rec.id)
+        if start and duration and duration > 0 then f.cd:SetCooldown(start, duration) return end
+    end
+    if s.gcdEnd > now then f.cd:SetCooldown(s.gcdEnd - s.gcd, s.gcd) else f.cd:Clear() end
+end
+
+---------------------------------------------------------------------------
+-- Pills: AoE label above, preparation line below
+---------------------------------------------------------------------------
+
+local function createPill(parent)
+    local p = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    p.text = W.Font(p, 12, C.text)
+    p:Hide()
+    return p
+end
+
+local function fitPill(p, padX, height)
+    local w = p.text:GetStringWidth() + padX * 2 + (p.extraWidth or 0)
+    p:SetSize(w, height)
 end
 
 ---------------------------------------------------------------------------
@@ -154,7 +212,6 @@ end
 function HUD:Create()
     if self.frame then return end
     local frame = CreateFrame("Frame", "ForeverCoachHUD", UIParent, "BackdropTemplate")
-    frame:SetSize(MAIN + 8, MAIN + 8)
     frame:SetClampedToScreen(true)
     frame:SetMovable(true)
     frame:RegisterForDrag("LeftButton")
@@ -166,28 +223,28 @@ function HUD:Create()
     end)
     self.frame = frame
 
-    self.main = createIcon(frame, MAIN)
-    self.main:SetPoint("CENTER")
-    self.next = { createIcon(frame, SMALL), createIcon(frame, SMALL) }
-    self.next[1]:SetPoint("LEFT", self.main, "RIGHT", GAP, 0)
-    self.next[2]:SetPoint("LEFT", self.next[1], "RIGHT", GAP, 0)
-    self.defense = createIcon(frame, SMALL)
-    self.defense:SetPoint("RIGHT", self.main, "LEFT", -GAP, 0)
-    self.cooldown = createIcon(frame, SMALL)
+    self.main = createIcon(frame, true)
+    for i = 1, 3 do self.next[i] = createIcon(frame, false) end
+    self.defense = createIcon(frame, false)
+    self.cooldown = createIcon(frame, false)
 
-    self.aoe = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    self.aoe:SetPoint("BOTTOM", self.main, "TOP", 0, 3)
-    self.aoe:SetText(L.AOE)
-    self.aoe:SetTextColor(1, 0.55, 0.2)
-    self.aoe:Hide()
+    self.aoe = createPill(frame)
+    W.Box(self.aoe, C.window, C.aoe, 1, 0)
+    self.aoe.text:SetTextColor(C.aoeText[1], C.aoeText[2], C.aoeText[3], 1)
+    self.aoe.text:SetPoint("CENTER")
 
-    self.prep = frame:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    self.prep:SetPoint("TOP", self.main, "BOTTOM", 0, -6)
-    self.prep:SetTextColor(0.85, 0.85, 0.85)
-    self.prep:Hide()
+    self.prep = createPill(frame)
+    W.Box(self.prep, { 0.055, 0.059, 0.075 }, C.line, 1, 0.88)
+    self.prep.mark = W.Font(self.prep, 14, C.gold)
+    self.prep.mark:SetPoint("LEFT", 10, 0)
+    self.prep.mark:SetText("+")
+    self.prep.text:SetPoint("LEFT", self.prep.mark, "RIGHT", 8, 0)
+    self.prep.place = W.Font(self.prep, 12, C.muted)
+    self.prep.place:SetPoint("LEFT", self.prep.text, "RIGHT", 4, 0)
 
-    self.label = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    self.label:SetPoint("BOTTOM", frame, "TOP", 0, 14)
+    self.label = W.Font(frame, 12, C.gold)
+    self.label:SetPoint("BOTTOM", frame, "TOP", 0, 30)
+    self.label:SetJustifyH("CENTER")
     self.label:SetText(L.UNLOCKED_LABEL)
 
     self:ApplySettings()
@@ -196,27 +253,88 @@ end
 function HUD:ApplySettings()
     local frame, db = self.frame, ns.db
     if not frame then return end
-    frame:SetScale(db.scale)
+    frame:SetScale(1)
     frame:SetAlpha(db.alpha)
     frame:ClearAllPoints()
     frame:SetPoint(db.pos.point or "CENTER", UIParent, db.pos.point or "CENTER", db.pos.x or 0, db.pos.y or 0)
 
+    local main, small, side = db.iconSize, px(36), px(40)
+    frame:SetSize(main + 8, main + 8)
+    sizeIcon(self.main, main, math.max(10, px(13)))
+    for i = 1, 3 do sizeIcon(self.next[i], small, math.max(9, px(11))) end
+    sizeIcon(self.defense, side, math.max(9, px(11)))
+    sizeIcon(self.cooldown, side, math.max(9, px(11)))
+
+    self.main:ClearAllPoints()
+    self.main:SetPoint("CENTER")
+    local gap = px(8)
+    self.next[1]:ClearAllPoints()
+    self.next[1]:SetPoint("BOTTOMLEFT", self.main, "BOTTOMRIGHT", gap, 0)
+    for i = 2, 3 do
+        self.next[i]:ClearAllPoints()
+        self.next[i]:SetPoint("BOTTOMLEFT", self.next[i - 1], "BOTTOMRIGHT", gap, 0)
+    end
+    self.defense:ClearAllPoints()
+    self.defense:SetPoint("BOTTOMRIGHT", self.main, "BOTTOMLEFT", -px(12), 0)
+    self.shownNext = nil -- re-anchor the cooldown slot and the AoE label on the next render
+
     local unlocked = not db.locked
     frame:EnableMouse(unlocked)
     if unlocked then
-        frame:SetBackdrop({ bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border", edgeSize = 12, insets = { left = 3, right = 3, top = 3, bottom = 3 } })
-        frame:SetBackdropColor(0.1, 0.1, 0.2, 0.7)
+        W.Box(frame, C.window, C.gold, 1, 0.6)
         self.label:Show()
     else
         frame:SetBackdrop(nil)
         self.label:Hide()
     end
+end
 
-    -- The cooldown slot sits right after the last "next" icon.
-    local anchor = self.main
-    for i = 1, math.min(db.nextIcons, 2) do anchor = self.next[i] end
+-- Cooldown slot and AoE label depend on how many next icons are shown.
+function HUD:Anchor(shownNext)
+    if shownNext == self.shownNext then return end
+    self.shownNext = shownNext
+    local last = shownNext > 0 and self.next[shownNext] or self.main
     self.cooldown:ClearAllPoints()
-    self.cooldown:SetPoint("LEFT", anchor, "RIGHT", GAP, 0)
+    self.cooldown:SetPoint("BOTTOMLEFT", last, "BOTTOMRIGHT", px(12), 0)
+    local rowWidth = ns.db.iconSize + shownNext * (px(36) + px(8))
+    self.aoe:ClearAllPoints()
+    self.aoe:SetPoint("BOTTOM", self.main, "TOP", (rowWidth - ns.db.iconSize) / 2, px(8))
+end
+
+local function healthLabel(line, s)
+    for _, path in ipairs(line.paths or {}) do
+        if path == "pet.hp_pct" and not s.hidden["pet.hp_pct"] then
+            return string.format("%d%%", math.floor(s.pet.hp_pct + 0.5))
+        end
+        if path == "player.hp_pct" and not s.hidden["player.hp_pct"] then
+            return string.format("%d%%", math.floor(s.player.hp_pct + 0.5))
+        end
+    end
+    return ""
+end
+
+function HUD:ShowPrep(r, centered)
+    local p = self.prep
+    if not r.prep then p:Hide() return end
+    local text = L[r.prep]
+    if r.prepValue ~= nil then text = string.format(text, r.prepValue) end
+    p.text:SetText(text)
+    local place = r.prepPlace == "trainer" and ns.db.trainerPlace or nil
+    p.place:SetText(place and ("· " .. place) or "")
+    p.extraWidth = 18 + (place and (p.place:GetStringWidth() + 4) or 0)
+    fitPill(p, 12, 30)
+    p:ClearAllPoints()
+    if centered then p:SetPoint("CENTER", self.main, "CENTER") else p:SetPoint("TOP", self.main, "BOTTOM", 0, -px(14)) end
+    p:Show()
+end
+
+local function hideAll(self)
+    self.main.rec = nil
+    self.main:Hide()
+    for i = 1, 3 do self.next[i].rec = nil; self.next[i]:Hide() end
+    self.defense:Hide(); self.defense.label:SetText("")
+    self.cooldown:Hide(); self.cooldown.label:SetText("")
+    self.aoe:Hide()
 end
 
 -- Draw the hints. r = Engine result, s = snapshot (nil when there is no class data).
@@ -226,59 +344,95 @@ function HUD:Render(r, s, now)
     local unlocked = not db.locked
     if (not db.shown and not unlocked) or not s then
         frame:Hide()
+        ns.ActionBars:Highlight(nil)
         return
     end
     frame:Show()
 
     if unlocked then
-        -- Placeholders so the whole block can be placed.
         local fake = { id = 1, kind = "spell", action = "", wait = 0, at = now }
         textureCache["spell1"] = QUESTION
-        for _, f in ipairs({ self.main, self.defense, self.cooldown }) do setIcon(f, fake, now); f:Show() end
-        for i = 1, 2 do
-            if i <= db.nextIcons then setIcon(self.next[i], fake, now); self.next[i]:Show() else self.next[i]:Hide() end
+        for _, f in ipairs({ self.main, self.defense, self.cooldown }) do setIcon(f, fake); f:Show() end
+        for i = 1, 3 do
+            local f = self.next[i]
+            if i <= db.nextIcons then setIcon(f, fake); f:SetAlpha(NEXT_ALPHA[i]); f:Show() else f:Hide() end
         end
+        self:Anchor(db.nextIcons)
+        self.aoe.text:SetText(string.format(L.AOE, 3, ns.Plural(3, L.ENEMY_FORMS)))
+        fitPill(self.aoe, 8, 18)
         self.aoe:Show()
-        self.prep:SetText(L.PREP_NO_PET)
-        self.prep:Show()
+        self:ShowPrep({ prep = "PREP_NO_PET" }, false)
+        ns.ActionBars:Highlight(nil)
         return
     end
 
     local inCombat = s.player.in_combat
     local showBlock = not s.player.dead and (inCombat or (not db.hideOutOfCombat and s.target.enemy))
+    local main = r.main[1]
 
     if showBlock then
-        setIcon(self.main, r.main[1], now, true)
+        setIcon(self.main, main)
+        showCooldown(self.main, main, s, now)
         self.main:Show()
-        for i = 1, 2 do
-            local rec = i <= db.nextIcons and r.main[i + 1] or nil
-            if rec then setIcon(self.next[i], rec, now); self.next[i]:Show() else self.next[i].rec = nil; self.next[i]:Hide() end
+        if main and main.glow then
+            setRing(self.main, C.proc, 0.7, true)
+        elseif main and inCombat and main.wait <= 0.05 then
+            setRing(self.main, C.gold, 0.4, false)
+        else
+            setRing(self.main, nil)
         end
-        if r.hasDefense then setIcon(self.defense, r.defense, now); self.defense:Show() else self.defense.rec = nil; self.defense:Hide() end
-        if r.hasCooldown then setIcon(self.cooldown, r.cooldown, now); self.cooldown:Show() else self.cooldown.rec = nil; self.cooldown:Hide() end
-        self.aoe:SetShown(r.aoe)
+
+        local shown = 0
+        for i = 1, 3 do
+            local f, rec = self.next[i], i <= db.nextIcons and r.main[i + 1] or nil
+            if rec then
+                setIcon(f, rec)
+                f:SetAlpha(NEXT_ALPHA[i])
+                f:Show()
+                shown = i
+            else
+                f.rec = nil
+                f:Hide()
+            end
+        end
+        self:Anchor(shown)
+
+        if r.hasDefense then
+            setIcon(self.defense, r.defense)
+            setRing(self.defense, C.danger, 0, false)
+            self.defense.label:SetTextColor(C.dangerText[1], C.dangerText[2], C.dangerText[3], 1)
+            self.defense.label:SetText(healthLabel(r.defense.line, s))
+            self.defense:Show()
+        else
+            self.defense.rec = nil
+            self.defense:Hide()
+            self.defense.label:SetText("")
+        end
+
+        if r.hasCooldown then
+            setIcon(self.cooldown, r.cooldown)
+            setRing(self.cooldown, COOLDOWN_SLOT, 0.3, false)
+            self.cooldown.label:SetTextColor(C.gold[1], C.gold[2], C.gold[3], 1)
+            self.cooldown.label:SetText(L.READY)
+            self.cooldown:Show()
+        else
+            self.cooldown.rec = nil
+            self.cooldown:Hide()
+            self.cooldown.label:SetText("")
+        end
+
+        if r.aoe then
+            self.aoe.text:SetText(string.format(L.AOE, s.enemies, ns.Plural(s.enemies, L.ENEMY_FORMS)))
+            fitPill(self.aoe, 8, 18)
+            self.aoe:Show()
+        else
+            self.aoe:Hide()
+        end
     else
-        self.main.rec = nil
-        self.main:Hide()
-        self.next[1]:Hide(); self.next[2]:Hide()
-        self.defense:Hide(); self.cooldown:Hide()
-        self.aoe:Hide()
+        hideAll(self)
     end
 
-    if not inCombat and r.prep then
-        local text = L[r.prep]
-        if r.prepValue ~= nil then text = string.format(text, r.prepValue) end
-        self.prep:SetText(text)
-        self.prep:Show()
-    else
-        self.prep:Hide()
-    end
+    if not inCombat then self:ShowPrep(r, not showBlock) else self.prep:Hide() end
 
-    -- Optional sound when a proc becomes the main hint.
-    local main = showBlock and r.main[1]
-    local glowing = main and main.glow or false
-    if glowing and not self.lastGlow and db.sound and PlaySound then
-        PlaySound((SOUNDKIT and SOUNDKIT.RAID_WARNING) or 8959, "Master")
-    end
-    self.lastGlow = glowing
+    ns.ActionBars:Highlight(db.highlightBar and showBlock and main and main.action or nil)
 end

@@ -52,6 +52,10 @@ function M.newWorld()
         secret = {},         -- "player.hp", "target.hp", "player.mana", "auras", "cooldowns", "cast"
         build = "1.60.1",
         chat = {},
+        sounds = {},         -- files passed to PlaySoundFile
+        actions = {},        -- action slot -> { "spell", spellID }
+        bindings = {},       -- binding command -> key
+        subzone = "Brill",
     }
 end
 
@@ -184,13 +188,23 @@ function M.install(W)
         return t[1], 0, 1, 1, t[2], t[3]
     end
     G.GetActiveTalentGroup = function() return 1 end
-    G.GetActionInfo = function() return nil end
-    G.GetBindingKey = function() return nil end
+    G.GetActionInfo = function(slot)
+        local a = W.actions[slot]
+        if a then return a[1], a[2], a[3] end
+        return nil
+    end
+    G.GetBindingKey = function(command) return W.bindings[command] end
+    G.GetBindingText = function(key) return key end
+    G.PlaySoundFile = function(path) W.sounds[#W.sounds + 1] = path end
+    G.GetSubZoneText = function() return W.subzone end
+    G.IsTradeskillTrainer = function() return false end
+    G.STANDARD_TEXT_FONT = "Fonts\\FRIZQT__.TTF"
 
     -- Frames: Create* methods return another stub, Get* return 0, everything else nil.
     -- Enough for the UI files to load and build their frames.
     local stub
     local function method(k)
+        if not k:match("^%u") then return nil end -- fields, unlike methods, start lowercase
         if k:match("^Create") then return function() return stub() end end
         if k:match("^Get") then return function() return 0 end end
         return function() return nil end

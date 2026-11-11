@@ -38,7 +38,7 @@ end
 function Loop:Compute(now)
     local s = State:Refresh(now)
     if not s then return nil, nil end
-    local depth = 1 + math.max(0, math.min(2, ns.db.nextIcons or 1))
+    local depth = 1 + math.max(0, math.min(3, ns.db.nextIcons or 3))
     return Engine:Recommend(s, self.current, depth), s
 end
 
@@ -66,6 +66,7 @@ function Loop:Update()
     end
     self.active = s ~= nil and (s.player.in_combat or s.target.exists or s.castKey ~= nil)
     ns.HUD:Render(r, s, now)
+    ns.Sounds:Update(r, s, now)
     if s and r and ns.db.debug then self:Debug(r, s) end
     Events:Fire("FC_RECOMMENDATION", r, s) -- combat recap (stage 3) listens here
 end
@@ -169,6 +170,10 @@ function Commands:Run(cmd, arg)
     elseif cmd == "unlock" then
         setting("locked", false)
         ns.Print(L.UNLOCKED)
+    elseif cmd == "minimap" then
+        ns.db.minimap.hide = not ns.db.minimap.hide
+        Events:Fire("FC_SETTINGS_CHANGED", "minimap")
+        ns.Print(ns.db.minimap.hide and L.MINIMAP_HIDDEN or L.MINIMAP_SHOWN)
     elseif cmd == "builds" or cmd == "plan" then
         ns.Print(L.NOT_YET, 2)
     elseif cmd == "recap" then

@@ -26,24 +26,40 @@ end
 
 -- Settings kept per character (SavedVariablesPerCharacter: ForeverCoachCharDB).
 ns.Defaults = {
-    schema = 1,
-    shown = true,          -- the "show or hide hints" key
-    hideOutOfCombat = false,
+    schema = 2,
+    shown = true,            -- the "show or hide hints" key
+    hideOutOfCombat = true,  -- out of combat only the preparation line stays
+    highlightBar = true,     -- gold frame on the action bar button of the main hint
     locked = true,
     tooltips = true,
-    sound = false,         -- sound on proc, off by default
     debug = false,
-    nextIcons = 1,         -- 0..2 icons after the main one
-    scale = 1.0,
+    nextIcons = 3,           -- 0..3 icons after the main one
+    iconSize = 56,           -- main icon, px; the others scale with it
     alpha = 1.0,
     pos = { point = "CENTER", x = 0, y = -170 },
-    mode = "auto",         -- auto | leveling | group | pvp
-    hpThreshold = 35,      -- defense slot: player health, %
-    petHpThreshold = 40,   -- defense slot: demon health, %
-    shards = 3,            -- Soul Shards to keep
+    mode = "auto",           -- auto | leveling | group | pvp
+    lifeTapGap = 20,         -- Life Tap when mana is this many % below health
+    hpThreshold = 35,        -- defense slot: player health, %
+    petHpThreshold = 40,     -- defense slot: demon health, %
+    shards = 3,              -- Soul Shards to keep
+    soundReady = true,       -- "time to press": soft click
+    soundReadyVolume = 35,
+    soundProc = true,        -- instant proc: bright chime
+    soundProcVolume = 70,
     minimap = { hide = false, angle = 215 },
-    warnedData = {},       -- data versions already reported as outdated
+    warnedData = {},         -- data versions already reported as outdated
 }
+
+-- Settings saved by an older version: move to the current layout.
+local function migrate(db)
+    if (db.schema or 1) < 2 then
+        db.nextIcons, db.hideOutOfCombat = 3, true -- the block now shows the rotation ahead
+        db.scale, db.sound = nil, nil              -- replaced by iconSize and two sound settings
+    end
+    db.schema = ns.Defaults.schema
+    return db
+end
+ns.Migrate = migrate
 
 local function copyDefaults(dst, src)
     for k, v in pairs(src) do
@@ -100,7 +116,7 @@ boot:RegisterEvent("ADDON_LOADED")
 boot:RegisterEvent("PLAYER_LOGIN")
 boot:SetScript("OnEvent", function(self, event, arg1)
     if event == "ADDON_LOADED" and arg1 == ADDON then
-        ForeverCoachCharDB = copyDefaults(ForeverCoachCharDB or {}, ns.Defaults)
+        ForeverCoachCharDB = copyDefaults(migrate(ForeverCoachCharDB or {}), ns.Defaults)
         ns.db = ForeverCoachCharDB
         ns.Events:Fire("FC_INIT")
         self:UnregisterEvent("ADDON_LOADED")

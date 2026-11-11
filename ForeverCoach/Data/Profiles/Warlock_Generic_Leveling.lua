@@ -12,12 +12,15 @@ ns.Data:DefineProfile("WARLOCK", function()
         build = "Generic",
         mode = "leveling",
         approximate = true,
-        version = "0.1.0", patch = "1.60.1", date = "2026-11-11",
+        version = "0.2.0", patch = "1.60.1", date = "2026-11-11",
+        aoe = true, -- 3+ enemies: AoE lines at the top, "AoE" label above the block
 
         main = {
             { "drain_soul", "target.hp_pct <= 20 & soul_shards < opt.shards", why = "WHY_EXECUTE_SHARD" },
             { "shadow_bolt", "buff.shadow_trance.up", why = "WHY_PROC", glow = true },
-            { "life_tap", "(player.mana_pct < 15 | player.oom) & player.hp_pct > 50", why = "WHY_LIFE_TAP" },
+            { "hellfire", "enemies >= 3 & player.hp_pct > 50", why = "WHY_AOE_HELLFIRE" },
+            { "rain_of_fire", "enemies >= 3 & !known.hellfire", why = "WHY_AOE_RAIN" },
+            { "life_tap", "(player.mana_pct < player.hp_pct - opt.tap | player.oom) & player.hp_pct > opt.hp", why = "WHY_LIFE_TAP" },
             { "drain_life", "player.hp_pct < 40", why = "WHY_DRAIN_LIFE" },
             { "curse_of_agony", "debuff.curse_of_agony.refreshable & target.ttd > 10", why = "WHY_CURSE" },
             { "curse_of_weakness", "!known.curse_of_agony & debuff.curse_of_weakness.down & target.ttd > 10", why = "WHY_CURSE" },
@@ -52,7 +55,7 @@ ns.Data:DefineProfile("WARLOCK", function()
             { "known.create_healthstone & item.healthstone.count = 0 & soul_shards > 0", text = "PREP_NO_HEALTHSTONE" },
             { "buff.armor.down & (known.demon_skin | known.demon_armor)", text = "PREP_NO_ARMOR" },
             { "known.drain_soul & soul_shards < 1", text = "PREP_FEW_SHARDS", value = "soul_shards" },
-            { "trainer > 0", text = "PREP_TRAINER", value = "trainer" },
+            { "trainer > 0", text = "PREP_TRAINER", value = "trainer", place = "trainer" },
         },
     }
 end)

@@ -5,6 +5,14 @@ if GetLocale() ~= "ruRU" then return end
 
 local L = ns.L
 
+-- 1 враг, 2 врага, 5 врагов, 21 враг
+function ns.Plural(n, forms)
+    local m10, m100 = n % 10, n % 100
+    if m10 == 1 and m100 ~= 11 then return forms[1] end
+    if m10 >= 2 and m10 <= 4 and (m100 < 12 or m100 > 14) then return forms[2] end
+    return forms[3]
+end
+
 L.BINDING_TOGGLE = "Показать или скрыть подсказки"
 L.BINDING_BUILDS = "Окно «Билды»"
 L.BINDING_PLAN = "Окно «Планировщик»"
@@ -16,6 +24,7 @@ L.HELP = {
     "/fc — настройки",
     "/fc toggle — показать или скрыть подсказки",
     "/fc lock | unlock — закрепить или двигать блок подсказок",
+    "/fc minimap — показать или скрыть кнопку у мини-карты",
     "/fc mode auto | leveling | group | pvp — закрепить режим",
     "/fc builds | plan | recap — окна (появятся на следующих этапах)",
     "/fc debug — писать в чат причину каждой подсказки",
@@ -30,6 +39,8 @@ L.UNLOCKED = "Блок подсказок можно двигать мышью, 
 L.DEBUG_ON = "Отладка включена: причина каждой подсказки пишется в чат."
 L.DEBUG_OFF = "Отладка выключена."
 L.RESET_DONE = "Настройки сброшены."
+L.MINIMAP_SHOWN = "Кнопка у мини-карты показана."
+L.MINIMAP_HIDDEN = "Кнопка у мини-карты скрыта: /fc minimap вернёт её."
 L.MODE_SET = "Режим: %s."
 L.UNKNOWN_COMMAND = "Неизвестная команда. Список: /fc help."
 L.NOT_YET = "Это окно появится на этапе %d (см. README)."
@@ -44,9 +55,12 @@ L.HIDDEN_SUFFIX = " (скрыто, принято %s)"
 
 L.MODE_auto = "Авто"
 L.MODE_leveling = "Прокачка"
-L.MODE_group = "Подземелья и рейды"
+L.MODE_group = "Группа"
 L.MODE_pvp = "PvP"
 
+L.AOE = "AoE · %d %s"
+L.ENEMY_FORMS = { "враг", "врага", "врагов" }
+L.READY = "готово"
 L.WHY = "Почему: %s"
 L.PROFILE = "Профиль: %s"
 L.OUT_OF_RANGE = "Цель далеко"
@@ -77,29 +91,40 @@ L.WHY_FEAR_SECOND = "на тебе второй враг: возьми его в
 L.WHY_HOWL = "рядом три врага и больше: напугай всех"
 L.WHY_AMPLIFY = "сильный враг: усиль проклятие перед тем, как наложить"
 L.WHY_AOE_RAIN = "три врага и больше: урон по площади"
+L.WHY_AOE_HELLFIRE = "рядом три врага и больше: Адское пламя бьёт всех (и тебя тоже)"
 L.WHY_PET_ATTACK = "демон стоит без дела"
 L.WHY_DARK_PACT = "мало маны: возьми её у демона, а не из здоровья"
 L.WHY_PULL = "вне боя: начни с долгого заклинания"
 
-L.SETTINGS_TITLE = "Настройки ForeverCoach"
-L.S_SHOW = "Показывать подсказки"
-L.S_HIDE_OOC = "Прятать блок вне боя (строка подготовки остаётся)"
-L.S_LOCKED = "Закрепить положение"
-L.S_TOOLTIPS = "Объяснять подсказку при наведении"
-L.S_SOUND = "Звук на прок"
-L.S_MINIMAP = "Кнопка у мини-карты"
-L.S_DEBUG = "Отладка: причина каждой подсказки в чат"
-L.S_NEXT = "Следующих иконок: %d"
-L.S_SCALE = "Размер: %d%%"
-L.S_ALPHA = "Непрозрачность: %d%%"
-L.S_HP = "Защита при здоровье ниже: %d%%"
-L.S_PET_HP = "Помогать демону при здоровье ниже: %d%%"
-L.S_SHARDS = "Держать осколков души: %d"
-L.S_MODE = "Режим: %s"
-L.S_RESET_POS = "Сбросить положение"
-L.S_SECTION_LOOK = "Вид"
-L.S_SECTION_THRESHOLDS = "Пороги"
-L.S_SECTION_MODE = "Режим"
+L.SETTINGS_TITLE = "Настройки"
+L.S_SECTION_LOOK = "ВНЕШНИЙ ВИД"
+L.S_ICON_SIZE = "Размер главной иконки"
+L.S_PX = "%d px"
+L.S_ALPHA = "Прозрачность"
+L.S_PERCENT = "%d%%"
+L.S_NEXT = "Следующих иконок"
+L.S_HIDE_OOC = "Прятать иконки вне боя"
+L.S_HIGHLIGHT = "Подсвечивать кнопку на панелях"
+L.S_SECTION_MODE = "РЕЖИМ"
+L.S_MODE_HELP = "Авто: поле боя — PvP, подземелье или рейд — группа, всё остальное — прокачка."
+L.S_SECTION_THRESHOLDS = "ПОРОГИ"
+L.S_TAP = "Жизнеотвод, когда маны меньше, чем здоровья, на"
+L.S_HP = "Камень здоровья, когда здоровья ниже"
+L.S_PET_HP = "Канал здоровья, когда у демона ниже"
+L.S_SHARDS = "Держать осколков души"
+L.S_SECTION_SOUND = "ЗВУК"
+L.S_SOUND_READY = "«Пора нажимать» — тихий щелчок"
+L.S_SOUND_PROC = "Мгновенный прок — звонкий сигнал"
+L.S_VOLUME = "Громкость"
+L.S_SOUND_NOTE = "Щелчок не звучит, если кнопка уже нажата заранее."
+L.S_SECTION_KEYS = "КЛАВИШИ"
+L.S_KEY_TOGGLE = "Показать или скрыть подсказки"
+L.S_KEY_WINDOWS = "Билды · Планировщик · Разбор боя"
+L.S_KEY_NONE = "не назначено"
+L.S_OPEN_KEYS = "Открыть назначение клавиш"
+L.S_FOOTER = "Билды: |cffF2C94CTalents Forever|r (baldwinbuilds), соавтор · v%s"
+L.S_RESET = "Сбросить"
+L.S_DONE = "Готово"
 
 L.MINIMAP_TIP_LEFT = "Левая кнопка: настройки"
 L.MINIMAP_TIP_RIGHT = "Правая кнопка: показать или скрыть подсказки"

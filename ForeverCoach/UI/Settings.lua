@@ -1,155 +1,157 @@
--- Settings window (/fc). Closes with Esc. Built from plain widgets, no deprecated templates.
+-- Settings window (/fc), as in the mockup:
+--   left:  LOOK (main icon size, opacity, next icons, hide out of combat, bar highlight), MODE
+--   right: THRESHOLDS, SOUND (two signals, volume, preview), KEYS
+--   footer: Talents Forever co-author credit, Reset, Done. Esc closes it.
 local ADDON, ns = ...
-local L, Events = ns.L, ns.Events
+local L, Events, W = ns.L, ns.Events, ns.Widgets
+local C = W.C
 
-local Settings = {}
-ns.Settings = Settings
+-- (named SettingsWindow: "Settings" is the game's own settings API)
+local SettingsWindow = {}
+ns.Settings = SettingsWindow
 
-local WIDTH, HEIGHT = 380, 560
-local DARK = { bgFile = "Interface\\Tooltips\\UI-Tooltip-Background", edgeFile = "Interface\\Tooltips\\UI-Tooltip-Border",
-               edgeSize = 14, insets = { left = 4, right = 4, top = 4, bottom = 4 } }
+local WIDTH, HEIGHT = 760, 700
+local LEFT, RIGHT, COL = 24, 392, 344
 
 local function changed(key)
     Events:Fire("FC_SETTINGS_CHANGED", key)
     Events:Fire("FC_DIRTY")
 end
 
-local function header(parent, text, y)
-    local fs = parent:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    fs:SetPoint("TOPLEFT", 16, y)
-    fs:SetText(text)
-    return fs
+local function getter(key) return function() return ns.db[key] end end
+local function setter(key) return function(v) ns.db[key] = v; changed(key) end end
+
+local function at(widget, parent, x, y)
+    widget:ClearAllPoints()
+    widget:SetPoint("TOPLEFT", parent, "TOPLEFT", x, y)
+    return widget
 end
 
-local function checkbox(parent, y, label, key)
-    local cb = CreateFrame("CheckButton", nil, parent, "UICheckButtonTemplate")
-    cb:SetSize(24, 24)
-    cb:SetPoint("TOPLEFT", 14, y)
-    local text = cb:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    text:SetPoint("LEFT", cb, "RIGHT", 4, 0)
-    text:SetWidth(WIDTH - 70)
-    text:SetJustifyH("LEFT")
-    text:SetText(label)
-    cb:SetScript("OnClick", function(self)
-        ns.db[key] = self:GetChecked() and true or false
-        changed(key)
-    end)
-    cb.refresh = function() cb:SetChecked(ns.db[key]) end
-    return cb
+local function bindingText(...)
+    local keys = {}
+    for i = 1, select("#", ...) do
+        local key = GetBindingKey and GetBindingKey(select(i, ...))
+        if key then keys[#keys + 1] = GetBindingText and GetBindingText(key) or key end
+    end
+    if #keys == 0 then return L.S_KEY_NONE end
+    return table.concat(keys, " · ")
 end
 
-local function slider(parent, y, fmt, key, min, max, step, percent)
-    local label = parent:CreateFontString(nil, "OVERLAY", "GameFontHighlightSmall")
-    label:SetPoint("TOPLEFT", 18, y)
-    local s = CreateFrame("Slider", nil, parent, "BackdropTemplate")
-    s:SetOrientation("HORIZONTAL")
-    s:SetSize(WIDTH - 60, 16)
-    s:SetPoint("TOPLEFT", 20, y - 16)
-    s:SetBackdrop({ bgFile = "Interface\\Buttons\\UI-SliderBar-Background", edgeFile = "Interface\\Buttons\\UI-SliderBar-Border",
-                    tile = true, tileSize = 8, edgeSize = 8, insets = { left = 3, right = 3, top = 6, bottom = 6 } })
-    s:SetThumbTexture("Interface\\Buttons\\UI-SliderBar-Button-Horizontal")
-    s:SetMinMaxValues(min, max)
-    s:SetValueStep(step)
-    if s.SetObeyStepOnDrag then s:SetObeyStepOnDrag(true) end
-    local function show(v) label:SetText(string.format(fmt, percent and math.floor(v * 100 + 0.5) or v)) end
-    s:SetScript("OnValueChanged", function(_, v)
-        v = math.floor(v / step + 0.5) * step
-        show(v)
-        if ns.db[key] ~= v then
-            ns.db[key] = v
-            changed(key)
-        end
-    end)
-    s.refresh = function() s:SetValue(ns.db[key]); show(ns.db[key]) end
-    return s
+local function openKeyBindings()
+    if InCombatLockdown and InCombatLockdown() then return end
+    local api = _G.Settings
+    if api and api.OpenToCategory and api.KEYBINDINGS_CATEGORY_ID then
+        if pcall(api.OpenToCategory, api.KEYBINDINGS_CATEGORY_ID) then return end
+    end
+    if KeyBindingFrame_LoadUI then pcall(KeyBindingFrame_LoadUI) end
+    if KeyBindingFrame and ShowUIPanel then pcall(ShowUIPanel, KeyBindingFrame) end
 end
 
-local function button(parent, text, width)
-    local b = CreateFrame("Button", nil, parent, "UIPanelButtonTemplate")
-    b:SetSize(width, 22)
-    b:SetText(text)
-    return b
-end
-
-function Settings:Create()
+function SettingsWindow:Create()
     if self.frame then return end
-    local f = CreateFrame("Frame", "ForeverCoachSettings", UIParent, "BackdropTemplate")
-    f:SetSize(WIDTH, HEIGHT)
-    f:SetPoint("CENTER")
-    f:SetFrameStrata("DIALOG")
-    f:SetBackdrop(DARK)
-    f:SetBackdropColor(0.05, 0.05, 0.08, 0.95)
-    f:EnableMouse(true)
-    f:SetMovable(true)
-    f:RegisterForDrag("LeftButton")
-    f:SetScript("OnDragStart", f.StartMoving)
-    f:SetScript("OnDragStop", f.StopMovingOrSizing)
-    f:SetClampedToScreen(true)
-    f:Hide()
-    table.insert(UISpecialFrames, "ForeverCoachSettings") -- Esc closes it
-
-    local title = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", 0, -12)
-    title:SetText(L.SETTINGS_TITLE)
-    local close = CreateFrame("Button", nil, f, "UIPanelCloseButton")
-    close:SetPoint("TOPRIGHT", -2, -2)
-
+    local f = W.Window("ForeverCoachSettings", L.SETTINGS_TITLE, WIDTH, HEIGHT)
     local widgets = {}
-    local y = -40
-    header(f, L.S_SECTION_LOOK, y); y = y - 20
-    widgets[#widgets + 1] = checkbox(f, y, L.S_SHOW, "shown"); y = y - 24
-    widgets[#widgets + 1] = checkbox(f, y, L.S_HIDE_OOC, "hideOutOfCombat"); y = y - 24
-    widgets[#widgets + 1] = checkbox(f, y, L.S_LOCKED, "locked"); y = y - 24
-    widgets[#widgets + 1] = checkbox(f, y, L.S_TOOLTIPS, "tooltips"); y = y - 24
-    widgets[#widgets + 1] = checkbox(f, y, L.S_SOUND, "sound"); y = y - 24
-    -- The minimap setting lives in db.minimap.hide (inverted).
-    local mm = checkbox(f, y, L.S_MINIMAP, "_minimap"); y = y - 24
-    mm:SetScript("OnClick", function(cb)
-        ns.db.minimap.hide = not cb:GetChecked()
-        changed("minimap")
-    end)
-    mm.refresh = function() mm:SetChecked(not ns.db.minimap.hide) end
-    widgets[#widgets + 1] = mm
-    widgets[#widgets + 1] = checkbox(f, y, L.S_DEBUG, "debug"); y = y - 30
-    widgets[#widgets + 1] = slider(f, y, L.S_NEXT, "nextIcons", 0, 2, 1); y = y - 40
-    widgets[#widgets + 1] = slider(f, y, L.S_SCALE, "scale", 0.5, 2, 0.05, true); y = y - 40
-    widgets[#widgets + 1] = slider(f, y, L.S_ALPHA, "alpha", 0.2, 1, 0.05, true); y = y - 44
+    local function add(w) widgets[#widgets + 1] = w; return w end
 
-    header(f, L.S_SECTION_THRESHOLDS, y); y = y - 20
-    widgets[#widgets + 1] = slider(f, y, L.S_HP, "hpThreshold", 10, 80, 5); y = y - 40
-    widgets[#widgets + 1] = slider(f, y, L.S_PET_HP, "petHpThreshold", 10, 80, 5); y = y - 40
-    widgets[#widgets + 1] = slider(f, y, L.S_SHARDS, "shards", 0, 10, 1)
+    -- LOOK --------------------------------------------------------------------
+    at(W.Section(f, L.S_SECTION_LOOK), f, LEFT, -74)
+    at(add(W.Slider(f, COL, L.S_ICON_SIZE, L.S_PX, 32, 96, 2, getter("iconSize"), setter("iconSize"))), f, LEFT, -100)
+    at(add(W.Slider(f, COL, L.S_ALPHA, L.S_PERCENT, 20, 100, 5,
+        function() return math.floor(ns.db.alpha * 100 + 0.5) end,
+        function(v) ns.db.alpha = v / 100; changed("alpha") end)), f, LEFT, -152)
+    at(W.Font(f, 13, C.text), f, LEFT, -216):SetText(L.S_NEXT)
+    local next = add(W.Segmented(f, 156, { { 0, "0" }, { 1, "1" }, { 2, "2" }, { 3, "3" } },
+        getter("nextIcons"), setter("nextIcons")))
+    at(next, f, LEFT + COL - 156, -206)
+    at(add(W.Check(f, L.S_HIDE_OOC, getter("hideOutOfCombat"), setter("hideOutOfCombat"))), f, LEFT, -256)
+    at(add(W.Check(f, L.S_HIGHLIGHT, getter("highlightBar"), setter("highlightBar"))), f, LEFT, -286)
 
-    local mode = button(f, "", 200)
-    mode:SetPoint("BOTTOMLEFT", 16, 16)
-    local function showMode() mode:SetText(string.format(L.S_MODE, L["MODE_" .. ns.db.mode])) end
-    mode:SetScript("OnClick", function()
-        local list, idx = ns.Modes.list, 1
-        for i, m in ipairs(list) do if m == ns.db.mode then idx = i end end
-        ns.db.mode = list[idx % #list + 1]
-        showMode()
-        changed("mode")
-    end)
+    -- MODE --------------------------------------------------------------------
+    at(W.Section(f, L.S_SECTION_MODE), f, LEFT, -330)
+    local modes = {}
+    for _, m in ipairs(ns.Modes.list) do modes[#modes + 1] = { m, L["MODE_" .. m] } end
+    at(add(W.Segmented(f, COL, modes, getter("mode"), setter("mode"))), f, LEFT, -354)
+    local help = at(W.Font(f, 12, C.muted), f, LEFT, -400)
+    help:SetWidth(COL)
+    help:SetText(L.S_MODE_HELP)
 
-    local reset = button(f, L.S_RESET_POS, 130)
-    reset:SetPoint("BOTTOMRIGHT", -16, 16)
-    reset:SetScript("OnClick", function()
-        ns.db.pos = { point = "CENTER", x = 0, y = -170 }
-        changed("pos")
+    -- THRESHOLDS ----------------------------------------------------------------
+    at(W.Section(f, L.S_SECTION_THRESHOLDS), f, RIGHT, -74)
+    local rows = {
+        { L.S_TAP, "lifeTapGap", 0, 90, true },
+        { L.S_HP, "hpThreshold", 5, 90, true },
+        { L.S_PET_HP, "petHpThreshold", 5, 90, true },
+        { L.S_SHARDS, "shards", 0, 30, false },
+    }
+    for i, row in ipairs(rows) do
+        local y = -100 - (i - 1) * 40
+        local label = at(W.Font(f, 13, C.text), f, RIGHT, y - 4)
+        label:SetWidth(COL - 80)
+        label:SetText(row[1])
+        local box = add(W.NumberBox(f, row[3], row[4], getter(row[2]), setter(row[2])))
+        at(box, f, RIGHT + COL - 70, y)
+        if row[5] then at(W.Font(f, 13, C.muted), f, RIGHT + COL - 14, y - 6):SetText("%") end
+    end
+
+    -- SOUND ---------------------------------------------------------------------
+    at(W.Section(f, L.S_SECTION_SOUND), f, RIGHT, -268)
+    local sounds = {
+        { L.S_SOUND_READY, "soundReady", "soundReadyVolume", "ready" },
+        { L.S_SOUND_PROC, "soundProc", "soundProcVolume", "proc" },
+    }
+    for i, snd in ipairs(sounds) do
+        local y = -294 - (i - 1) * 66
+        at(add(W.Check(f, snd[1], getter(snd[2]), setter(snd[2]))), f, RIGHT, y)
+        at(W.PlayButton(f, function() ns.Sounds:Play(snd[4], true) end), f, RIGHT + COL - 28, y + 5)
+        at(add(W.Slider(f, COL - 26, L.S_VOLUME, L.S_PERCENT, 0, 100, 5, getter(snd[3]), setter(snd[3]), true)),
+            f, RIGHT + 26, y - 30)
+    end
+    local note = at(W.Font(f, 12, C.muted), f, RIGHT, -430)
+    note:SetWidth(COL)
+    note:SetText(L.S_SOUND_NOTE)
+
+    -- KEYS ----------------------------------------------------------------------
+    at(W.Section(f, L.S_SECTION_KEYS), f, RIGHT, -468)
+    local keyRows = {
+        { L.S_KEY_TOGGLE, { "FOREVERCOACH_TOGGLE" } },
+        { L.S_KEY_WINDOWS, { "FOREVERCOACH_BUILDS", "FOREVERCOACH_PLAN", "FOREVERCOACH_RECAP" } },
+    }
+    for i, row in ipairs(keyRows) do
+        local y = -494 - (i - 1) * 26
+        at(W.Font(f, 13, C.text), f, RIGHT, y):SetText(row[1])
+        local value = W.Font(f, 13, C.muted)
+        value:SetPoint("TOPRIGHT", f, "TOPLEFT", RIGHT + COL, y)
+        value:SetJustifyH("RIGHT")
+        add({ refresh = function() value:SetText(bindingText(unpack(row[2]))) end })
+    end
+    at(W.Button(f, L.S_OPEN_KEYS, 208, false, openKeyBindings), f, RIGHT, -548)
+
+    -- Footer --------------------------------------------------------------------
+    local footer = W.Font(f, 12, C.muted)
+    footer:SetPoint("BOTTOMLEFT", 24, 23)
+    footer:SetText(string.format(L.S_FOOTER, ns.VERSION))
+    local done = W.Button(f, L.S_DONE, 76, true, function() f:Hide() end)
+    done:SetPoint("BOTTOMRIGHT", -24, 13)
+    local reset = W.Button(f, L.S_RESET, 100, false, function()
+        ns:ResetSettings()
+        changed("reset")
+        SettingsWindow:Refresh()
     end)
+    reset:SetPoint("RIGHT", done, "LEFT", -10, 0)
 
     f:SetScript("OnShow", function()
         for _, w in ipairs(widgets) do w.refresh() end
-        showMode()
     end)
     self.frame = f
 end
 
-function Settings:Toggle()
+function SettingsWindow:Toggle()
     self:Create()
     if self.frame:IsShown() then self.frame:Hide() else self.frame:Show() end
 end
 
-function Settings:Refresh()
+function SettingsWindow:Refresh()
     if self.frame and self.frame:IsShown() then self.frame:GetScript("OnShow")(self.frame) end
 end
+
+Events:On("UPDATE_BINDINGS", SettingsWindow, function(self) self:Refresh() end)

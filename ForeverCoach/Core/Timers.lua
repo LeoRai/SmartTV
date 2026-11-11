@@ -17,6 +17,7 @@ local Timers = {
     glow = {},      -- spell key -> true while the client highlights it (proc)
     pet = nil,      -- demon family key
     targetGUID = nil,
+    lastSent = nil, -- when the player last pressed a spell (it may still be queued)
 }
 ns.Timers = Timers
 
@@ -151,6 +152,9 @@ local Events = ns.Events
 
 local function dirty() Events:Fire("FC_DIRTY") end
 
+Events:On("UNIT_SPELLCAST_SENT", Timers, function(self)
+    self.lastSent = now()
+end, "player")
 Events:On("UNIT_SPELLCAST_START", Timers, function(self, _, _, _, spellID)
     self:OnCastStart(spellID, now(), false); dirty()
 end, "player")

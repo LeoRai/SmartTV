@@ -104,6 +104,29 @@ function API.SpellCooldown(id)
     return nil, nil
 end
 
+-- Draw a spell's cooldown (global cooldown included) on a Cooldown widget, like an action button.
+-- Widgets accept values Lua may not read: secret values are passed through untouched.
+-- Returns false when the client gives nothing to draw; the caller then uses its own timers.
+function API.ShowSpellCooldown(cooldown, id)
+    if C_Spell and C_Spell.GetSpellCooldownDuration and cooldown.SetCooldownFromDurationObject then
+        local ok = pcall(function()
+            cooldown:SetCooldownFromDurationObject(C_Spell.GetSpellCooldownDuration(id))
+        end)
+        if ok then return true end
+    end
+    if C_Spell and C_Spell.GetSpellCooldown then
+        local ok = pcall(function()
+            local info = C_Spell.GetSpellCooldown(id)
+            cooldown:SetCooldown(info.startTime, info.duration)
+        end)
+        return ok
+    end
+    if GetSpellCooldown then
+        return (pcall(function() cooldown:SetCooldown(GetSpellCooldown(id)) end))
+    end
+    return false
+end
+
 -- usable, noMana. Either may be nil when hidden.
 function API.SpellUsable(id)
     local usable, noMana
@@ -173,20 +196,21 @@ function API.IsMoving()
     return speed > 0
 end
 
--- Current cast or channel of the player: spellID, endTime (seconds), isChannel. nil when idle or hidden.
+-- Current cast or channel of the player: spellID, endTime, isChannel, startTime (seconds).
+-- nil when idle or hidden.
 function API.PlayerCast()
     if UnitCastingInfo then
-        local name, _, _, _, endMS, _, _, _, spellID = UnitCastingInfo("player")
+        local name, _, _, startMS, endMS, _, _, _, spellID = UnitCastingInfo("player")
         if clean(name) then
-            local id, e = numberOrNil(spellID), numberOrNil(endMS)
-            if id and e then return id, e / 1000, false end
+            local id, s, e = numberOrNil(spellID), numberOrNil(startMS), numberOrNil(endMS)
+            if id and e then return id, e / 1000, false, s and s / 1000 or nil end
         end
     end
     if UnitChannelInfo then
-        local name, _, _, _, endMS, _, _, spellID = UnitChannelInfo("player")
+        local name, _, _, startMS, endMS, _, _, spellID = UnitChannelInfo("player")
         if clean(name) then
-            local id, e = numberOrNil(spellID), numberOrNil(endMS)
-            if id and e then return id, e / 1000, true end
+            local id, s, e = numberOrNil(spellID), numberOrNil(startMS), numberOrNil(endMS)
+            if id and e then return id, e / 1000, true, s and s / 1000 or nil end
         end
     end
     return nil

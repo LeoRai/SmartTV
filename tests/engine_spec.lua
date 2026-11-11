@@ -44,6 +44,7 @@ describe("Engine", function()
     it("level 1: Immolate first, then Shadow Bolt", function()
         addon.learnUpTo(ns, W, 1)
         fight(ns, W)
+        ns.db.nextIcons = 1
         local r = addon.compute(ns, W)
         assert.same({ "immolate", "shadow_bolt" }, addon.mainActions(r))
     end)

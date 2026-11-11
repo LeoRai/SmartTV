@@ -1,13 +1,14 @@
 -- Hint engine.
 -- Walks the profile top to bottom and picks the first action that is available and whose
 -- condition holds. Then "plays" that action in a virtual copy of the state (global cooldown,
--- cast time, debuff timers, cooldowns, consumed procs) and picks the next 1-2 the same way.
+-- cast time, debuff timers, cooldowns, consumed procs) and picks the next 3 the same way.
 --
 -- Available = known (highest rank), off cooldown (or ready by the end of the global cooldown),
 -- usable according to the client (mana, requirements), a hostile target for damage spells,
 -- the right demon for demon abilities, a wand for Shoot. Out of range is allowed only when
 -- nothing in range fits (the icon is tinted red then).
 --
+-- Forecast: the main icon plus up to 3 next ones (settings: next icons 0..3).
 -- Rows: every profile has main (the big icon and the next ones), defense (left slot) and
 -- cooldown (right slot) lists, plus prep (the out-of-combat preparation line).
 local ADDON, ns = ...
@@ -57,7 +58,7 @@ local COOLDOWN = set("ready", "remains")
 local ITEM = set("count", "ready")
 local GCD = set("remains", "duration")
 local MODES = set("leveling", "group", "pvp")
-local OPTS = set("hp", "pet_hp", "shards")
+local OPTS = set("hp", "pet_hp", "shards", "tap")
 
 local function auraRemains(ctx, overlay, base, key)
     local exp = overlay[key]
@@ -215,7 +216,7 @@ function Engine.Prepare(profile, def)
         local valueFn, verr
         if entry.value then valueFn, verr = Conditions.Compile(entry.value, Engine.vars) end
         if fn and (valueFn or not entry.value) then
-            prepared.prep[#prepared.prep + 1] = { fn = fn, text = entry.text, value = valueFn, src = entry[1] }
+            prepared.prep[#prepared.prep + 1] = { fn = fn, text = entry.text, value = valueFn, src = entry[1], place = entry.place }
         else
             prepared.errors[#prepared.errors + 1] = string.format("prep #%d: %s", i, err or verr)
         end
@@ -338,7 +339,7 @@ function Engine:Recommend(s, prepared, depth)
     self.ctx = self.ctx or newContext()
     self.result = self.result or { main = {}, recs = {}, defense = {}, cooldown = {} }
     local ctx, r = resetContext(self.ctx, s), self.result
-    r.mainCount, r.hasDefense, r.hasCooldown, r.prep, r.prepValue, r.aoe = 0, false, false, nil, nil, false
+    r.mainCount, r.hasDefense, r.hasCooldown, r.prep, r.prepValue, r.prepPlace, r.aoe = 0, false, false, nil, nil, nil, false
     ns.wipe(r.main)
     r.prepared = prepared
     if not prepared then return r end
@@ -379,6 +380,7 @@ function Engine:Recommend(s, prepared, depth)
             if truthy(p.fn(ctx)) then
                 r.prep = p.text
                 r.prepValue = p.value and p.value(ctx) or nil
+                r.prepPlace = p.place
                 break
             end
         end

@@ -9,6 +9,11 @@ ns.L = L
 
 L.ADDON = "ForeverCoach"
 
+-- Plural word for n: forms = { one, few, many }. English uses one / many; ruRU.lua overrides.
+function ns.Plural(n, forms)
+    return n == 1 and forms[1] or forms[3]
+end
+
 -- Key bindings (Game Menu > Key Bindings > AddOns > ForeverCoach)
 L.BINDING_HEADER = "ForeverCoach"
 L.BINDING_TOGGLE = "Show or hide hints"
@@ -23,6 +28,7 @@ L.HELP = {
     "/fc - settings",
     "/fc toggle - show or hide hints",
     "/fc lock | unlock - lock or move the hint block",
+    "/fc minimap - show or hide the minimap button",
     "/fc mode auto | leveling | group | pvp - pin the mode",
     "/fc builds | plan | recap - windows (coming in later stages)",
     "/fc debug - print the reason for every hint",
@@ -37,6 +43,8 @@ L.UNLOCKED = "Hint block unlocked: drag it, then /fc lock."
 L.DEBUG_ON = "Debug on: the reason for each hint is printed to chat."
 L.DEBUG_OFF = "Debug off."
 L.RESET_DONE = "Settings reset."
+L.MINIMAP_SHOWN = "Minimap button shown."
+L.MINIMAP_HIDDEN = "Minimap button hidden: /fc minimap brings it back."
 L.MODE_SET = "Mode: %s."
 L.UNKNOWN_COMMAND = "Unknown command. /fc help for the list."
 L.NOT_YET = "This window arrives in stage %d of the plan (see README)."
@@ -53,11 +61,13 @@ L.HIDDEN_SUFFIX = " (hidden, assumed %s)"
 -- Modes
 L.MODE_auto = "Auto"
 L.MODE_leveling = "Leveling"
-L.MODE_group = "Dungeons and raids"
+L.MODE_group = "Group"
 L.MODE_pvp = "PvP"
 
 -- HUD
-L.AOE = "AoE"
+L.AOE = "AoE · %d %s"
+L.ENEMY_FORMS = { "enemy", "enemies", "enemies" }
+L.READY = "ready"
 L.WHY = "Why: %s"
 L.PROFILE = "Profile: %s"
 L.OUT_OF_RANGE = "Out of range"
@@ -90,30 +100,41 @@ L.WHY_FEAR_SECOND = "a second enemy is on you: target it and Fear it"
 L.WHY_HOWL = "three or more enemies close by: fear them all"
 L.WHY_AMPLIFY = "strong enemy: amplify your curse before casting it"
 L.WHY_AOE_RAIN = "three or more enemies: area damage"
+L.WHY_AOE_HELLFIRE = "three or more enemies around you: Hellfire hits them all (it burns you too)"
 L.WHY_PET_ATTACK = "your demon is idle"
 L.WHY_DARK_PACT = "low mana: take it from your demon instead of your health"
 L.WHY_PULL = "out of combat: open with a long cast"
 
--- Settings window
-L.SETTINGS_TITLE = "ForeverCoach settings"
-L.S_SHOW = "Show hints"
-L.S_HIDE_OOC = "Hide the hint block out of combat (keep the preparation line)"
-L.S_LOCKED = "Lock position"
-L.S_TOOLTIPS = "Explain hints on mouseover"
-L.S_SOUND = "Sound on proc"
-L.S_MINIMAP = "Minimap button"
-L.S_DEBUG = "Debug: print the reason for each hint"
-L.S_NEXT = "Next icons: %d"
-L.S_SCALE = "Size: %d%%"
-L.S_ALPHA = "Opacity: %d%%"
-L.S_HP = "Defense when health below: %d%%"
-L.S_PET_HP = "Help the demon when its health below: %d%%"
-L.S_SHARDS = "Keep Soul Shards: %d"
-L.S_MODE = "Mode: %s"
-L.S_RESET_POS = "Reset position"
-L.S_SECTION_LOOK = "Look"
-L.S_SECTION_THRESHOLDS = "Thresholds"
-L.S_SECTION_MODE = "Mode"
+-- Settings window (layout of the mockup: Look, Mode | Thresholds, Sound, Keys)
+L.SETTINGS_TITLE = "Settings"
+L.S_SECTION_LOOK = "LOOK"
+L.S_ICON_SIZE = "Main icon size"
+L.S_PX = "%d px"
+L.S_ALPHA = "Opacity"
+L.S_PERCENT = "%d%%"
+L.S_NEXT = "Next icons"
+L.S_HIDE_OOC = "Hide icons out of combat"
+L.S_HIGHLIGHT = "Highlight the button on action bars"
+L.S_SECTION_MODE = "MODE"
+L.S_MODE_HELP = "Auto: battleground - PvP, dungeon or raid - group, everything else - leveling."
+L.S_SECTION_THRESHOLDS = "THRESHOLDS"
+L.S_TAP = "Life Tap when mana is lower than health by"
+L.S_HP = "Healthstone when health is below"
+L.S_PET_HP = "Health Funnel when the demon is below"
+L.S_SHARDS = "Soul Shards to keep"
+L.S_SECTION_SOUND = "SOUND"
+L.S_SOUND_READY = "\"Time to press\" - soft click"
+L.S_SOUND_PROC = "Instant proc - bright chime"
+L.S_VOLUME = "Volume"
+L.S_SOUND_NOTE = "The click stays silent if the button was already pressed in advance."
+L.S_SECTION_KEYS = "KEYS"
+L.S_KEY_TOGGLE = "Show or hide hints"
+L.S_KEY_WINDOWS = "Builds · Planner · Combat recap"
+L.S_KEY_NONE = "not bound"
+L.S_OPEN_KEYS = "Open key bindings"
+L.S_FOOTER = "Builds: |cffF2C94CTalents Forever|r (baldwinbuilds), co-author · v%s"
+L.S_RESET = "Reset"
+L.S_DONE = "Done"
 
 -- Minimap button
 L.MINIMAP_TIP_LEFT = "Left click: settings"

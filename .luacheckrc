@@ -38,6 +38,8 @@ read_globals = {
     "UnitThreatSituation", "IsInGroup", "IsInRaid", "C_PvP", "C_Timer", "wipe", "WOW_PROJECT_ID",
     "WOW_PROJECT_MAINLINE", "WOW_PROJECT_CLASSIC", "newproxy", "GetQuestsCompleted", "C_QuestLog",
     "UnitName", "GetRealZoneText", "C_Map", "date", "Settings", "AuraUtil", "canaccesssecrets",
+    "GetBindingText", "KeyBindingFrame_LoadUI", "KeyBindingFrame", "ShowUIPanel", "PlaySoundFile",
+    "STANDARD_TEXT_FONT", "IsTradeskillTrainer", "GetSubZoneText",
 }
 
 files["tests/"] = { std = "+busted" }
