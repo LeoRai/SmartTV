@@ -122,6 +122,12 @@ function M.install(W)
             return { AddPoint = function(_, x, y) points[#points + 1] = { x, y } end, points = points }
         end,
     }
+    G.UnitPowerPercent = function(unit, _, _, curve)
+        local d = unitData(unit)
+        if not d then return nil end
+        if curve then W.gateBinds = W.gateBinds + 1 end
+        return secret()
+    end
     G.UnitHealthPercent = function(unit, _, curve)
         local d = unitData(unit)
         if not d then return nil end

@@ -170,6 +170,19 @@ function API.BindHealthGate(frame, unit, threshold, warn)
     return (pcall(function() frame:SetAlpha(UnitHealthPercent(unit, true, curve)) end))
 end
 
+-- Same by the player's mana (power type 0): UnitPowerPercent(unit, powerType, usePredicted, curve).
+function API.BindManaGate(frame, unit, threshold, warn)
+    local curve = gateCurve(threshold, warn)
+    if not curve or not UnitPowerPercent then return false end
+    return (pcall(function() frame:SetAlpha(UnitPowerPercent(unit, 0, true, curve)) end))
+end
+
+-- Health or mana, as the gate says.
+function API.BindGate(frame, gate, threshold, warn)
+    if gate.power == "mana" then return API.BindManaGate(frame, gate.unit, threshold, warn) end
+    return API.BindHealthGate(frame, gate.unit, threshold, warn)
+end
+
 -- usable, noMana. Either may be nil when hidden.
 function API.SpellUsable(id)
     local usable, noMana

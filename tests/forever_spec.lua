@@ -113,18 +113,25 @@ describe("Health gates in Forever", function()
         assert.is_false(r.hasDefense)
     end)
 
+    it("lays Life Tap over the main icon by hidden mana", function()
+        local r = addon.compute(ns, W)
+        assert.equal("life_tap", r.gatedMains[2].action)
+        assert.equal("mana", r.gatedMains[2].gate.power)
+        assert.equal(0.15, r.gatedMains[2].threshold)
+    end)
+
     it("keeps Drain Soul out once enough shards are kept", function()
         W.items[6265] = 5
         addon.rescan(ns)
         local r = addon.compute(ns, W)
-        assert.is_nil(r.gatedMain)
+        for _, g in ipairs(r.gatedMains) do assert.are_not.equal("drain_soul", g.action) end
     end)
 
     it("binds the gated icons to the client's health curve", function()
         local r, s = addon.compute(ns, W)
         ns.HUD:Render(r, s, W.time)
-        -- Drain Soul over the main icon (icon + its frame), three over the defense slot.
-        assert.equal(5, W.gateBinds)
+        -- Drain Soul and Life Tap over the main icon (icon + its frame each), three over the defense slot.
+        assert.equal(7, W.gateBinds)
     end)
 
     it("fades Drain Soul in from 35% and shows it fully at 20%", function()
@@ -132,7 +139,9 @@ describe("Health gates in Forever", function()
         assert.equal(15, r.gatedMain.gate.warn)
         ns.HUD:Render(r, s, W.time)
         local fade
-        for _, points in ipairs(W.curves) do if #points == 5 then fade = points end end
+        for _, points in ipairs(W.curves) do
+            if #points == 5 and points[2][1] == 0.2 then fade = points end
+        end
         assert.is_table(fade)
         assert.same({ 0, 1 }, fade[1])
         assert.same({ 0.2, 1 }, fade[2])

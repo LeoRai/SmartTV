@@ -230,9 +230,13 @@ function HUD:Create()
 
     -- Health-gated hints laid over their slots: the client shows them only below the threshold.
     -- Not hoverable (an invisible icon must not catch the mouse).
-    self.mainGate = createIcon(frame, false)
-    self.mainGate:SetAllPoints(self.main)
-    self.mainGate:SetFrameLevel(self.main:GetFrameLevel() + 6)
+    self.mainGates = {}
+    for i = 1, 2 do
+        local g = createIcon(frame, false)
+        g:SetAllPoints(self.main)
+        g:SetFrameLevel(self.main:GetFrameLevel() + 12 - i * 3) -- the first one on top
+        self.mainGates[i] = g
+    end
     self.defenseGates = {}
     for i = 1, 3 do
         local g = createIcon(frame, false)
@@ -240,7 +244,8 @@ function HUD:Create()
         g:SetFrameLevel(self.defense:GetFrameLevel() + 12 - i * 3) -- the first (most important) on top
         self.defenseGates[i] = g
     end
-    for _, g in ipairs({ self.mainGate, unpack(self.defenseGates) }) do g:EnableMouse(false) end
+    for _, g in ipairs(self.mainGates) do g:EnableMouse(false) end
+    for _, g in ipairs(self.defenseGates) do g:EnableMouse(false) end
 
     self.aoe = createPill(frame)
     W.Box(self.aoe, C.window, C.aoe, 1, 0)
@@ -275,7 +280,7 @@ function HUD:ApplySettings()
     local main, small, side = db.iconSize, px(36), px(40)
     frame:SetSize(main + 8, main + 8)
     sizeIcon(self.main, main, math.max(10, px(13)))
-    sizeIcon(self.mainGate, main, math.max(10, px(13)))
+    for i = 1, 2 do sizeIcon(self.mainGates[i], main, math.max(10, px(13))) end
     for i = 1, 3 do sizeIcon(self.defenseGates[i], side, math.max(9, px(11))) end
     for i = 1, 3 do sizeIcon(self.next[i], small, math.max(9, px(11))) end
     sizeIcon(self.defense, side, math.max(9, px(11)))
@@ -356,16 +361,16 @@ local function showGate(f, rec, color)
     local warn = rec.gate.warn and rec.gate.warn / 100 or nil
     setRing(f, color, warn and 0 or 0.5, not warn)
     f:Show()
-    if not API.BindHealthGate(f, rec.gate.unit, rec.threshold, warn) then
+    if not API.BindGate(f, rec.gate, rec.threshold, warn) then
         f:SetAlpha(0)
     elseif warn then
         f.ring:SetAlpha(0)
-        API.BindHealthGate(f.ring, rec.gate.unit, rec.threshold)
+        API.BindGate(f.ring, rec.gate, rec.threshold)
     end
 end
 
 local function hideGates(self)
-    self.mainGate:Hide()
+    for i = 1, 2 do self.mainGates[i]:Hide() end
     for i = 1, 3 do self.defenseGates[i]:Hide() end
 end
 
@@ -464,7 +469,7 @@ function HUD:Render(r, s, now)
             self.cooldown.label:SetText("")
         end
 
-        showGate(self.mainGate, inCombat and r.gatedMain or nil, C.gold)
+        for i = 1, 2 do showGate(self.mainGates[i], inCombat and r.gatedMains[i] or nil, C.gold) end
         for i = 1, 3 do showGate(self.defenseGates[i], r.gatedDefense[i], C.danger) end
 
         if r.aoe then

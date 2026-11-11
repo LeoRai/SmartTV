@@ -9,9 +9,10 @@
 -- nothing in range fits (the icon is tinted red then).
 --
 -- Forecast: the main icon plus up to 3 next ones (settings: next icons 0..3).
--- Health gates (stage 0: Forever hides every health value from addons, but lets the client show
--- or hide a widget by it): a line with gate = { unit = "player" | "target" | "pet", below = N or
--- "opt key" } holds only while that unit's health is at or below the threshold. When the health is
+-- Health and mana gates (stage 0: Forever hides health and mana from addons, but lets the client
+-- show or hide a widget by them): a line with gate = { unit = "player" | "target" | "pet",
+-- below = N or "opt key", power = "mana" (optional, player only), warn = N (optional) } holds only
+-- while that unit's health (or the player's mana) is at or below the threshold. When the health is
 -- readable the engine checks it like any condition. When it is hidden, the line leaves the normal
 -- choice and comes back as a gated hint (result.gatedMain, result.gatedDefense): the HUD lays it
 -- over its slot and the client shows it only below the threshold (UI/HUD.lua, API.BindHealthGate).
@@ -199,11 +200,14 @@ local function compileLine(def, row, i, entry, errors)
         local g = entry.gate
         local unitOk = g.unit == "player" or g.unit == "target" or g.unit == "pet"
         local belowOk = type(g.below) == "number" or OPTS[g.below]
-        if not unitOk or not belowOk then
-            errors[#errors + 1] = string.format("%s #%d (%s): bad gate (unit player/target/pet, below = number or opt key)", row, i, action)
+        local powerOk = g.power == nil or (g.power == "mana" and g.unit == "player")
+        if not unitOk or not belowOk or not powerOk then
+            errors[#errors + 1] = string.format("%s #%d (%s): bad gate (unit player/target/pet, below = number or opt key, power = mana for player)", row, i, action)
             return nil
         end
-        line.gate = { unit = g.unit, below = g.below, warn = g.warn, key = g.unit .. ":" .. tostring(g.below) }
+        local field = g.power == "mana" and "mana_pct" or "hp_pct"
+        line.gate = { unit = g.unit, below = g.below, warn = g.warn, power = g.power, field = field,
+                      key = g.unit .. "." .. field .. ":" .. tostring(g.below) }
     end
     line.fn, line.paths = fn, paths
     line.pathFns = {}
@@ -324,11 +328,11 @@ local function gateThreshold(s, gate)
 end
 Engine.GateThreshold = gateThreshold
 
-local function gateHidden(s, gate) return s.hidden[gate.unit .. ".hp_pct"] == true end
+local function gateHidden(s, gate) return s.hidden[gate.unit .. "." .. gate.field] == true end
 
 local function gateOpen(s, gate)
     local holder = s[gate.unit]
-    local pct = holder and holder.hp_pct
+    local pct = holder and holder[gate.field]
     return pct ~= nil and pct <= gateThreshold(s, gate)
 end
 
@@ -384,12 +388,13 @@ end
 function Engine:Recommend(s, prepared, depth)
     self.ctx = self.ctx or newContext()
     self.result = self.result or { main = {}, recs = {}, defense = {}, cooldown = {},
-                                   gatedDefense = {}, gatedRecs = {}, gatedMainRec = {} }
+                                   gatedDefense = {}, gatedRecs = {}, gatedMains = {}, gatedMainRecs = {} }
     self.gatedLines = self.gatedLines or {}
     local ctx, r = resetContext(self.ctx, s), self.result
     r.mainCount, r.hasDefense, r.hasCooldown, r.prep, r.prepValue, r.prepPlace, r.aoe = 0, false, false, nil, nil, nil, false
     r.gatedMain = nil
     ns.wipe(r.main)
+    ns.wipe(r.gatedMains)
     ns.wipe(r.gatedDefense)
     r.prepared = prepared
     if not prepared then return r end
@@ -418,7 +423,12 @@ function Engine:Recommend(s, prepared, depth)
         if i == 1 then
             gated = ns.wipe(self.gatedLines)
             line, oor = pickRow(ctx, prepared.main, gated)
-            if gated[1] then r.gatedMain = fill(r.gatedMainRec, ctx, gated[1], false) end
+            for k, g in ipairs(gated) do
+                if k > 2 then break end
+                r.gatedMainRecs[k] = r.gatedMainRecs[k] or {}
+                r.gatedMains[k] = fill(r.gatedMainRecs[k], ctx, g, false)
+            end
+            r.gatedMain = r.gatedMains[1]
         else
             line, oor = pick(ctx, prepared.main, false, true)
         end

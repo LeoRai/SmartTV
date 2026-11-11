@@ -105,11 +105,14 @@ describe("Block", function()
         assert.equal("rain_of_fire", r.main[1].action)
     end)
 
-    it("taps life only when the next spell is out of mana", function()
+    it("taps life at 15% mana or when the next spell is out of mana", function()
         addon.learnUpTo(ns, W, 20)
         fight(W)
-        W.player.mana = 10 -- low, but the client still says the spells are castable
+        W.player.mana = 40
         assert.are_not.equal("life_tap", addon.compute(ns, W).main[1].action)
+        W.player.mana = 10 -- readable here: the mana gate is checked by the engine itself
+        assert.equal("life_tap", addon.compute(ns, W).main[1].action)
+        W.player.mana = 40
         for _, id in ipairs({ 1088, 1094, 6222, 1014 }) do W.usable[id] = false; W.noMana[id] = true end
         assert.equal("life_tap", addon.compute(ns, W).main[1].action)
     end)
