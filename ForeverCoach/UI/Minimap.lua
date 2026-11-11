@@ -41,6 +41,8 @@ function MinimapButton:Create()
             ForeverCoach_Binding("builds")
         elseif IsControlKeyDown and IsControlKeyDown() then
             ForeverCoach_Binding("plan")
+        elseif IsAltKeyDown and IsAltKeyDown() then
+            ForeverCoach_Binding("recap")
         else
             ForeverCoach_Binding("settings")
         end
@@ -63,6 +65,7 @@ function MinimapButton:Create()
         GameTooltip:AddLine(L.MINIMAP_TIP_RIGHT, 1, 1, 1)
         GameTooltip:AddLine(L.MINIMAP_TIP_SHIFT, 1, 1, 1)
         GameTooltip:AddLine(L.MINIMAP_TIP_CTRL, 1, 1, 1)
+        GameTooltip:AddLine(L.MINIMAP_TIP_ALT, 1, 1, 1)
         GameTooltip:AddLine(L.MINIMAP_TIP_DRAG, 0.7, 0.7, 0.7)
         GameTooltip:Show()
     end)

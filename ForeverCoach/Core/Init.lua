@@ -69,6 +69,9 @@ ns.Defaults = {
     soundProc = true,        -- instant proc: bright chime
     soundProcVolume = 70,
     minimap = { hide = false, angle = 215 },
+    noHints = false,         -- "No hints" mode: the block hides, the combat recap keeps counting
+    training = false,        -- training: a score after every fight, the best one per build is kept
+    recapMinFight = 10,      -- fights shorter than this (seconds) are not recorded
     warnedData = {},         -- data versions already reported as outdated
 }
 
@@ -100,7 +103,8 @@ end
 ns.CopyDefaults = copyDefaults
 
 -- Data that is not a setting survives /fc reset.
-ns.KeepOnReset = { builds = true, trainerVisit = true, trainerPlace = true, surprises = true, warnedData = true }
+ns.KeepOnReset = { builds = true, trainerVisit = true, trainerPlace = true, surprises = true, warnedData = true,
+                   recap = true }
 
 function ns:ResetSettings()
     local kept = {}

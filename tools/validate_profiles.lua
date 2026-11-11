@@ -50,6 +50,12 @@ local function validateClass(problems, token, def)
     for key, p in pairs(def.pets or {}) do
         check(problems, def.spells[p.summon], "%s.pets.%s: unknown summon '%s'", where, key, tostring(p.summon))
     end
+    for key, b in pairs(def.buffs or {}) do
+        if b.glow then check(problems, def.spells[b.glow], "%s.buffs.%s: unknown glow spell '%s'", where, key, b.glow) end
+        if b.talent then
+            check(problems, def.talents and def.talents[b.talent], "%s.buffs.%s: unknown talent '%s'", where, key, b.talent)
+        end
+    end
     if def.filler then check(problems, def.spells[def.filler], "%s: unknown filler '%s'", where, def.filler) end
 end
 

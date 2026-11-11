@@ -224,15 +224,19 @@ local function compileLine(def, row, i, entry, errors)
 end
 
 -- Returns a prepared profile: { profile, main = {...}, defense = {...}, cooldown = {...},
--- prep = {...}, errors = { "..." } }. Lines with errors are left out (and listed in errors).
+-- prep = {...}, uses = { [action] = true }, errors = { "..." } }. Lines with errors are left out
+-- (and listed in errors).
 function Engine.Prepare(profile, def)
     checkDef = def
-    local prepared = { profile = profile, id = profile.id, errors = {} }
+    local prepared = { profile = profile, id = profile.id, errors = {}, uses = {} }
     for _, row in ipairs(ROWS) do
         local lines = {}
         for i, entry in ipairs(profile[row] or {}) do
             local line = compileLine(def, row, i, entry, prepared.errors)
-            if line then lines[#lines + 1] = line end
+            if line then
+                lines[#lines + 1] = line
+                prepared.uses[line.action] = true
+            end
         end
         prepared[row] = lines
     end

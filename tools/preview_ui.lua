@@ -2,7 +2,7 @@
 -- Frames are recorded (size, anchors, backdrop, textures, text), anchors are resolved the way the
 -- client does it, and every visible region becomes an absolutely placed <div>.
 -- Spell icons are placeholders and text width is estimated, so this checks layout, not pixels.
---   lua tools/preview_ui.lua builds|planner|settings [ruRU|enUS] > preview.html
+--   lua tools/preview_ui.lua builds|planner|recap|recap-session|recap-records|settings [ruRU|enUS] > preview.html
 package.path = "tests/?.lua;" .. package.path
 local addon = require("helpers.addon")
 local tf = require("helpers.tf")
@@ -144,6 +144,10 @@ if which == "builds" then
 elseif which == "planner" then
     ns.PlannerWindow:Toggle()
     window = ns.PlannerWindow.frame
+elseif which == "recap" or which == "recap-session" or which == "recap-records" then
+    ns.RecapWindow.tab = which == "recap" and "fights" or which:match("%-(%a+)$")
+    ns.RecapWindow:Toggle()
+    window = ns.RecapWindow.frame
 else
     ns.Settings:Toggle()
     ns.Settings.frame:GetScript("OnShow")(ns.Settings.frame)

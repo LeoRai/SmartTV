@@ -452,7 +452,7 @@ function HUD:Render(r, s, now)
     local frame, db = self.frame, ns.db
     if not frame then return end
     local unlocked = not db.locked
-    if (not db.shown and not unlocked) or not s then
+    if ((not db.shown or db.noHints) and not unlocked) or not s then
         frame:Hide()
         ns.ActionBars:Highlight(nil)
         return

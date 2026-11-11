@@ -75,6 +75,13 @@ function SettingsWindow:Create()
     help:SetWidth(COL)
     help:SetText(L.S_MODE_HELP)
 
+    -- COMBAT RECAP ----------------------------------------------------------------
+    at(W.Section(f, L.S_SECTION_RECAP), f, LEFT, -452)
+    local minLabel = at(W.Font(f, 13, C.text), f, LEFT, -482)
+    minLabel:SetWidth(COL - 80)
+    minLabel:SetText(L.S_MIN_FIGHT)
+    at(add(W.NumberBox(f, 3, 120, getter("recapMinFight"), setter("recapMinFight"))), f, LEFT + COL - 48, -478)
+
     -- THRESHOLDS ----------------------------------------------------------------
     at(W.Section(f, L.S_SECTION_THRESHOLDS), f, RIGHT, -74)
     local rows = {

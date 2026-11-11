@@ -49,7 +49,7 @@ end
 -- Called after every hint update.
 function Sounds:Update(r, s, now)
     local main = r and r.main[1]
-    if not (s and main and s.player.in_combat and ns.db.shown) then
+    if not (s and main and s.player.in_combat and ns.db.shown and not ns.db.noHints) then
         self:Reset()
         return
     end

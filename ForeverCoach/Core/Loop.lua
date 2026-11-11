@@ -193,7 +193,9 @@ function Commands:Run(cmd, arg)
     elseif cmd == "plan" or cmd == "planner" then
         ns.PlannerWindow:Toggle()
     elseif cmd == "recap" then
-        ns.Print(L.NOT_YET, 3)
+        ns.RecapWindow:Toggle()
+    elseif cmd == "nohints" then
+        ns.RecapWindow.SetNoHints(not ns.db.noHints)
     elseif cmd == "mode" then
         arg = (arg or ""):lower()
         if arg == "auto" or ns.Modes.suffix[arg] then

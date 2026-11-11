@@ -202,7 +202,7 @@ ns.Data:DefineClass("WARLOCK", function()
         -- Buffs on the player. glow: the client highlights this spell while the buff is up
         -- (fallback when auras are hidden in combat).
         buffs = {
-            shadow_trance = { ids = { 17941 }, glow = "shadow_bolt", duration = 10 },
+            shadow_trance = { ids = { 17941 }, glow = "shadow_bolt", duration = 10, talent = "nightfall" },
             armor = { ids = {}, duration = 1800 }, -- Demon Skin / Demon Armor add their IDs
         },
 

@@ -26,7 +26,7 @@ read_globals = {
     "C_Spell", "GetSpellInfo", "GetSpellTexture", "IsPlayerSpell", "IsSpellKnown", "C_SpellBook", "Enum",
     "GetSpellCooldown", "IsUsableSpell", "IsSpellInRange", "UnitHealth", "UnitHealthMax", "UnitPower",
     "UnitPowerMax", "UnitExists", "UnitCanAttack", "UnitIsDeadOrGhost", "UnitAffectingCombat", "UnitGUID",
-    "IsShiftKeyDown", "IsControlKeyDown", "UnitClassification", "UnitLevel", "UnitIsPlayer", "UnitIsUnit", "UnitClass", "UnitCreatureFamily",
+    "IsShiftKeyDown", "IsControlKeyDown", "IsAltKeyDown", "UnitClassification", "UnitLevel", "UnitIsPlayer", "UnitIsUnit", "UnitClass", "UnitCreatureFamily",
     "GetUnitSpeed", "UnitCastingInfo", "UnitChannelInfo", "C_UnitAuras", "UnitAura", "C_Item", "GetItemCount",
     "C_Container", "GetItemCooldown", "GetItemIcon", "HasWandEquipped", "GetNumTalentTabs", "GetNumTalents",
     "GetTalentInfo", "GetTalentLink", "GetTalentTabInfo", "GetActiveTalentGroup", "GetActiveSpecGroup",
@@ -37,7 +37,7 @@ read_globals = {
     "GetSpellBookItemInfo", "GetSpellBookItemName", "GetNumSpellTabs", "GetSpellTabInfo", "GetPetActionInfo",
     "UnitThreatSituation", "IsInGroup", "IsInRaid", "C_PvP", "C_Timer", "wipe", "WOW_PROJECT_ID",
     "WOW_PROJECT_MAINLINE", "WOW_PROJECT_CLASSIC", "newproxy", "GetQuestsCompleted", "C_QuestLog",
-    "UnitName", "GetRealZoneText", "C_Map", "date", "GetCoinTextureString", "UnitFactionGroup", "Settings", "AuraUtil", "canaccesssecrets",
+    "UnitName", "GetRealZoneText", "C_Map", "date", "time", "GetCoinTextureString", "UnitFactionGroup", "Settings", "AuraUtil", "canaccesssecrets",
     "GetBindingText", "KeyBindingFrame_LoadUI", "KeyBindingFrame", "ShowUIPanel", "PlaySoundFile",
     "STANDARD_TEXT_FONT", "IsTradeskillTrainer", "GetSubZoneText", "C_CurveUtil", "UnitHealthPercent", "UnitPowerPercent",
 }

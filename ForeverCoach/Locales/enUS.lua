@@ -32,7 +32,8 @@ L.HELP = {
     "/fc mode auto | leveling | group | pvp - pin the mode",
     "/fc builds - builds window (Talents Forever)",
     "/fc plan - planner: trainer, talents, level preview",
-    "/fc recap - combat recap (coming in stage 3)",
+    "/fc recap - combat recap: the last 10 fights and the session",
+    "/fc nohints - no-hints mode: the block hides, the recap keeps counting",
     "/fc debug - print the reason for every hint",
     "/fc state - print the current game snapshot",
     "/fc perf - update timing",
@@ -262,3 +263,73 @@ L.P_QUEST_DONE = "done"
 
 L.MINIMAP_TIP_SHIFT = "Shift+click: builds"
 L.MINIMAP_TIP_CTRL = "Ctrl+click: planner"
+L.MINIMAP_TIP_ALT = "Alt+click: combat recap"
+
+-- Combat recap window (stage 3)
+L.DECIMAL = "."
+L.RECAP_TITLE = "Combat recap"
+L.R_SAMPLE = "Sample data"
+L.R_TAB_fights = "Recent fights"
+L.R_TAB_session = "Session"
+L.R_TAB_records = "Records"
+L.R_NO_TARGET = "No target"
+L.R_FIGHT_META = "fight %s, %s"
+L.R_BLIND = ", without hints"
+L.R_ACCURACY = "Accuracy"
+L.R_ACCURACY_SUB = "%d of %d presses"
+L.R_UPTIME = "Debuffs on target"
+L.R_UPTIME_SUB = "of the fight"
+L.R_UPTIME_NONE = "none asked for"
+L.R_IDLE = "Idle"
+L.R_IDLE_VALUE = "%s s"
+L.R_PAUSES = { "%d pause", "%d pauses", "%d pauses" }
+L.R_PROCS = "Missed procs"
+L.R_PROCS_SUB = { "of %d proc", "of %d procs", "of %d procs" }
+L.R_PROCS_NONE = "no procs this fight"
+L.R_PROCS_TALENT_AT = "%s from level %d"
+L.R_PROCS_TALENT = "needs the talent %s"
+L.R_TIMELINE = "PRESSES OVER TIME"
+L.R_LEGEND_OK = "as hinted"
+L.R_LEGEND_OTHER = "otherwise"
+L.R_LEGEND_IDLE = "idle"
+L.R_ERRORS = "MISTAKES"
+L.R_NO_ERRORS = "No mistakes in this fight."
+L.R_MORE_ERRORS = "and %d more"
+L.R_ERR_MISS = "%s instead of the hinted %s"
+L.R_ERR_IDLE = "Idle %s s"
+L.R_IDLE_HINT = "%s was ready"
+L.R_WHY_DOWN = "it was not on the target"
+L.R_WHY_LOW = "it was about to run out"
+L.R_WHY_PROC = "a proc made it instant"
+L.R_WHY_MANA = "out of mana"
+L.R_WHY_AOE = { "%d enemy around", "%d enemies around", "%d enemies around" }
+L.R_SESSION = "Session:"
+L.R_FIGHTS = { "%d fight", "%d fights", "%d fights" }
+L.R_SESSION_AVG = "average accuracy %s"
+L.R_SESSION_PREV = "last session %s"
+L.R_SESSION_NO_PREV = "no earlier session"
+L.R_SESSION_NONE = "no fights recorded yet this session"
+L.R_SESSION_TITLE = "THIS SESSION"
+L.R_SESSION_BLIND = "Without hints: %s, accuracy %s"
+L.R_SESSION_BLIND_NONE = "Without hints: no fights yet. Try the mode below to check what you remember."
+L.R_SESSIONS_PAST = "EARLIER SESSIONS"
+L.R_SESSIONS_NONE = "No earlier sessions yet."
+L.R_RECORDS_TITLE = "RECORDS BY BUILD"
+L.R_RECORD_SUB = "accuracy %d%%, speed %d%%, %s"
+L.R_RECORDS_NONE = "No records yet: turn on Training, and after every fight you get a score; the best one per build is kept."
+L.R_SCORE_HELP = "Score: accuracy times speed, up to 1000. Speed is 100% when you press within 0.3 s of the moment you could, and falls to 50% at 1.5 s."
+L.R_EMPTY = "No fights yet: fight longer than %d s and the recap appears here."
+L.R_NOHINTS = "No-hints mode"
+L.R_NOHINTS_NOTE = "icons hidden, the recap keeps counting"
+L.R_TRAINING = "Training"
+L.R_TRAINING_ON = "Training: on"
+L.R_TRAINING_STARTED = "Training on: after every fight you get a score for accuracy and speed, the best one is the build's record."
+L.R_TRAINING_STOPPED = "Training off."
+L.R_TRAINING_RESULT = "Training: %d (accuracy %d%%, speed %d%%). Build record: %d."
+L.R_TRAINING_RECORD = "Training: %d (accuracy %d%%, speed %d%%), a new build record!"
+L.R_NOHINTS_ON = "No-hints mode: the hint block is hidden, the combat recap keeps counting. /fc nohints turns it off."
+L.R_NOHINTS_OFF = "Hints are shown again."
+L.R_SAMPLE_TARGETS = { "Scarlet Warrior", "Scarlet Warrior", "Rotting Dead", "Rotting Dead", "Vampire Bat",
+                       "Scarlet Recruit", "Scarlet Recruit", "Spider", "Spider", "Scarlet Warrior" }
+L.S_SECTION_RECAP = "COMBAT RECAP"
+L.S_MIN_FIGHT = "Skip fights shorter than, s"
