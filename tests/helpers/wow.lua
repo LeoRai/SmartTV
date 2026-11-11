@@ -56,6 +56,7 @@ function M.newWorld()
         actions = {},        -- action slot -> { "spell", spellID }
         bindings = {},       -- binding command -> key
         subzone = "Brill",
+        registered = {},     -- events registered on any frame
     }
 end
 
@@ -214,6 +215,7 @@ function M.install(W)
         local obj = {
             SetScript = function(_, name, fn) scripts[name] = fn end,
             GetScript = function(_, name) return scripts[name] end,
+            RegisterEvent = function(_, event) W.registered[event] = true end,
         }
         return setmetatable(obj, { __index = function(_, k) return method(k) end })
     end

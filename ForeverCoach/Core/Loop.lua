@@ -97,6 +97,13 @@ Events:On("UNIT_AURA", Loop, markDirty, "player", "target")
 Events:On("UNIT_HEALTH", Loop, markDirty, "player", "target", "pet")
 Events:On("UNIT_POWER_UPDATE", Loop, markDirty, "player")
 
+-- If the client ever blocks one of our calls, name the function so it can be fixed.
+local function blocked(_, _, addon, func)
+    if addon == ADDON then ns.Print(L.BLOCKED, tostring(func)) end
+end
+Events:On("ADDON_ACTION_FORBIDDEN", Loop, blocked)
+Events:On("ADDON_ACTION_BLOCKED", Loop, blocked)
+
 Events:On("FC_PROFILE_CHANGED", Loop, function(self, _, profile, approximate)
     self:Use(profile)
     if ns.db.debug and profile then

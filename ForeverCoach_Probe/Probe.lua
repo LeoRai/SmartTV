@@ -206,10 +206,6 @@ local CHECKS = {
         if C_Spell and C_Spell.IsSpellInRange then return C_Spell.IsSpellInRange(basicSpell(), unit) end
         return IsSpellInRange(GetSpellInfo(basicSpell()), unit)
     end) },
-    { "assisted.nextSpell", function()
-        if not (C_AssistedCombat and C_AssistedCombat.GetNextCastSpell) then return nil end
-        return C_AssistedCombat.GetNextCastSpell()
-    end },
     { "item.count", function()
         if C_Item and C_Item.GetItemCount then return C_Item.GetItemCount(SOUL_SHARD) end
         return GetItemCount(SOUL_SHARD)
@@ -241,10 +237,9 @@ local EVENTS = {
     SPELL_ACTIVATION_OVERLAY_GLOW_SHOW = function(spellID) return true, spellID end,
     PLAYER_TARGET_CHANGED = function() return true, "target" end,
     NAME_PLATE_UNIT_ADDED = function(unit) return true, unit end,
-    COMBAT_LOG_EVENT_UNFILTERED = function()
-        if not CombatLogGetCurrentEventInfo then return true, nil end
-        return true, (select(2, CombatLogGetCurrentEventInfo()))
-    end,
+    -- No COMBAT_LOG_EVENT_UNFILTERED: subscribing to the combat log is a Blizzard-only action in
+    -- Forever, and the client blocks the addon with a popup even inside pcall. Its absence is
+    -- already known; the API list still records whether CombatLogGetCurrentEventInfo exists.
 }
 
 ---------------------------------------------------------------------------
@@ -474,6 +469,9 @@ local function buildReport()
     local regs = {}
     for _, event in ipairs(sortedKeys(DB.registration)) do regs[#regs + 1] = event .. "=" .. DB.registration[event] end
     add("event registration: %s", table.concat(regs, ", "))
+    local blocked = {}
+    for _, b in ipairs(DB.blocked or {}) do blocked[#blocked + 1] = b.func .. " (" .. b.where .. ")" end
+    add("blocked by the client: %s", #blocked > 0 and table.concat(blocked, ", ") or "-")
     local book = DB.dumps.spellbook
     add("dump: spellbook %s, talents %s, pet %s, trainers %d, quests %d",
         book and (#book .. " spells") or "-", DB.dumps.talents and "yes" or "-", DB.dumps.pet and "yes" or "-",
@@ -531,7 +529,7 @@ end
 
 local function newDB()
     return { version = VERSION, client = {}, api = {}, registration = {}, contexts = {}, dumps = {},
-             trainers = {}, quests = {} }
+             trainers = {}, quests = {}, blocked = {} }
 end
 
 local function recordClient()
@@ -569,6 +567,7 @@ frame:SetScript("OnEvent", function(_, event, ...)
         ForeverCoachProbeDB = ForeverCoachProbeDB or newDB()
         DB = ForeverCoachProbeDB
         if DB.version ~= VERSION then ForeverCoachProbeDB = newDB(); DB = ForeverCoachProbeDB end
+        DB.blocked = DB.blocked or {}
     elseif event == "PLAYER_LOGIN" then
         recordClient()
         C_Timer.After(3, function() snapshot(false); pcall(dump) end)
@@ -582,6 +581,13 @@ frame:SetScript("OnEvent", function(_, event, ...)
         C_Timer.After(2, function() pcall(dump) end)
     elseif event == "TRAINER_SHOW" then
         C_Timer.After(0.5, function() pcall(dumpTrainer) end)
+    elseif event == "ADDON_ACTION_FORBIDDEN" or event == "ADDON_ACTION_BLOCKED" then
+        -- The client stopped an action of this addon: keep the function name for the report.
+        local addon, func = ...
+        if addon == ADDON and DB then
+            DB.blocked[#DB.blocked + 1] = { event = event, func = tostring(func), where = contextName() }
+            say(T("игра заблокировала действие: %s", "the game blocked an action: %s"), tostring(func))
+        end
     elseif event == "QUEST_TURNED_IN" then
         local questID = ...
         local title = C_QuestLog and C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(questID)
@@ -592,7 +598,8 @@ frame:SetScript("OnEvent", function(_, event, ...)
 end)
 
 for _, event in ipairs({ "ADDON_LOADED", "PLAYER_LOGIN", "PLAYER_REGEN_DISABLED", "PLAYER_REGEN_ENABLED",
-                         "PLAYER_LEVEL_UP", "TRAINER_SHOW", "QUEST_TURNED_IN" }) do
+                         "PLAYER_LEVEL_UP", "TRAINER_SHOW", "QUEST_TURNED_IN",
+                         "ADDON_ACTION_FORBIDDEN", "ADDON_ACTION_BLOCKED" }) do
     pcall(frame.RegisterEvent, frame, event)
 end
 -- Registration itself is part of the answer (the combat log may be closed to addons).

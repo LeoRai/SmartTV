@@ -43,6 +43,18 @@ describe("Probe", function()
         assert.is_truthy(checks["player.health"].ok)
     end)
 
+    it("never subscribes to the combat log (Blizzard-only in Forever)", function()
+        assert.is_nil(W.registered.COMBAT_LOG_EVENT_UNFILTERED)
+        assert.is_true(W.registered.UNIT_SPELLCAST_SUCCEEDED)
+    end)
+
+    it("records actions the client blocks", function()
+        fire(W, "ADDON_ACTION_FORBIDDEN", "ForeverCoach_Probe", "SomeProtectedCall()")
+        fire(W, "ADDON_ACTION_FORBIDDEN", "OtherAddon", "Whatever()")
+        assert.equal(1, #ForeverCoachProbeDB.blocked)
+        assert.equal("SomeProtectedCall()", ForeverCoachProbeDB.blocked[1].func)
+    end)
+
     it("records event payloads and builds the report", function()
         fire(W, "UNIT_SPELLCAST_SUCCEEDED", "player", "cast", 686)
         fire(W, "UNIT_SPELLCAST_SUCCEEDED", "player", "cast", wow.secret())
