@@ -122,3 +122,23 @@ describe("Planner", function()
         assert.same(live, addon.mainActions(ns.Engine.result))
     end)
 end)
+
+describe("Planner: the rotation now is the live hint's", function()
+    it("matches the live hint on a fresh target, with only what is learned", function()
+        local ns, W = addon.load()
+        addon.learnUpTo(ns, W, 12)
+        W.level = 16 -- four levels without a visit to the trainer: Drain Life and new ranks not bought
+        addon.rescan(ns)
+        W.target = { hp = 100, hpMax = 100, enemy = true, guid = "fresh" }
+        W.player.combat = true
+        local r, s = addon.compute(ns, W)
+        local live = addon.mainActions(r)
+        local def = ns.Data.class
+        local now = ns.Planner.RotationNow(def, ns.Loop.current, s, #live)
+        local keys = {}
+        for i, x in ipairs(now) do keys[i] = x.key end
+        assert.same(live, keys)
+        -- the preview at level 16 assumes the purchases: it may differ, "now" must not
+        for _, x in ipairs(now) do assert.is_not_nil(s.known[x.key]) end
+    end)
+end)

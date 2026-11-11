@@ -12,10 +12,10 @@ local C = W.C
 local BuildsWindow = { tab = "all", selected = 1, spec = nil, link = nil, message = nil }
 ns.BuildsWindow = BuildsWindow
 
-local WIDTH, HEIGHT = 840, 620
+local WIDTH, HEIGHT = 840, 660
 local ROWS, ROTATION = 5, 5
 local LIST_X, LIST_Y, ROW_H, ROW_GAP = 22, -133, 56, 7
-local CARD_X, CARD_W, CARD_H = 338, 480, 430
+local CARD_X, CARD_W, CARD_H = 338, 480, 470
 
 ---------------------------------------------------------------------------
 -- Model
@@ -42,16 +42,42 @@ local function spellIdOf(key)
     return ns.State.known[key] or sp.ranks[1][1]
 end
 
+local function icon(key, id, proc)
+    id = id or spellIdOf(key)
+    local name = API.SpellName(id) or key
+    return { key = key, id = id, texture = API.SpellTexture(id), proc = proc,
+             label = proc and string.format(L.B_ON_PROC, name) or name, name = name }
+end
+
+-- The build's rotation at the player's level (its own profile, the talents its plan has by now,
+-- the spells known) and what joins it later, with levels.
 local function rotationOf(build, tab)
+    local def, Planner, TF = Data.class, ns.Planner, ns.TalentsForever
+    local s = ns.State:Refresh(GetTime())
+    local level = s.player.level
     local mode = tab ~= "all" and tab or ns.Modes.current
-    local out = {}
-    for i, r in ipairs(ns.Builds.RotationOf(build, mode, ROTATION)) do
-        local id = spellIdOf(r.key)
-        local name = API.SpellName(id) or r.key
-        out[i] = { key = r.key, id = id, texture = API.SpellTexture(id), proc = r.proc,
-                   label = r.proc and string.format(L.B_ON_PROC, name) or name }
+    local profile = ns.BuildMatcher.Select(def, Data.profiles, nil, {}, mode, build.lead)
+    local ranks = build.ranks or TF.Decode(def.token, build.code)
+    -- now: the spells learned and the talents taken, as the live hint has them
+    local now = {}
+    for _, r in ipairs(Planner.Distinct(Planner.RotationNow(def, Planner.Prepared(profile, def), s, 8))) do
+        if #now < ROTATION then now[#now + 1] = icon(r.key, r.id) end
     end
-    return out
+    -- the proc, once the talent that gives it is taken
+    for _, b in pairs(def.buffs or {}) do
+        if b.glow and b.talent and (s.talents[b.talent] or 0) > 0 and #now < ROTATION then
+            now[#now + 1] = icon(b.glow, nil, true)
+        end
+    end
+    local later = {}
+    for _, u in ipairs(Planner.Upcoming(def, profile, s, level, ranks)) do
+        local name = API.SpellName(u.id) or u.key
+        if u.proc then name = string.format(L.B_PROC_NAME, name) end
+        local item = string.format(L.B_UPCOMING_ITEM, name, u.level)
+        if u.kind then item = item .. string.format(" (%s)", L["B_KIND_" .. u.kind]) end
+        later[#later + 1] = item
+    end
+    return now, later, profile
 end
 
 local function compareLines(build)
@@ -84,6 +110,7 @@ function BuildsWindow:Model()
     local m = { tab = self.tab, available = (TF and TF.Available() and def) and true or false }
     m.className = API.Clean(UnitClass and UnitClass("player")) or (def and def.name) or ""
     local level = playerLevel()
+    m.level = level
     m.spec = self.spec or Builds.ActiveSpec()
     m.spec2Open = level >= Builds.SPEC2_LEVEL
     if not m.spec2Open and m.spec == 2 then m.spec = 1 end
@@ -115,7 +142,10 @@ function BuildsWindow:Model()
     elseif sel.saved then
         card.stats = string.format(L.B_STATS, ns.Number(sel.saved), ns.Number(sel.opened or 0), ns.Number(sel.variants or 0))
     end
-    card.rotation = rotationOf(sel, self.tab)
+    local later, profile
+    card.rotation, later, profile = rotationOf(sel, self.tab)
+    card.later = #later > 0 and string.format(L.B_UPCOMING, table.concat(later, ", ")) or L.B_UPCOMING_NONE
+    card.approximate = profile and profile.approximate or nil
     card.first, card.second, card.compare = compareLines(sel)
     card.isChosen = m.chosen ~= nil and m.chosen.code == sel.code
     m.card = card
@@ -267,18 +297,18 @@ function BuildsWindow:Create()
     card.stats = W.Font(card, 12, C.muted)
     card.stats:SetPoint("TOPLEFT", 18, -98)
 
-    local rotTitle = W.Section(card, L.B_ROTATION)
-    rotTitle:SetPoint("TOPLEFT", 18, -132)
+    card.rotTitle = W.Section(card, L.B_ROTATION)
+    card.rotTitle:SetPoint("TOPLEFT", 18, -132)
     card.rotation, card.arrows = {}, {}
     local colW = (CARD_W - 36) / ROTATION
     for i = 1, ROTATION do
-        local icon = W.Icon(card, 36)
-        icon:SetPoint("TOPLEFT", 18 + (i - 1) * colW + (colW - 36) / 2, -156)
-        icon.label = W.Font(card, 11, C.muted)
-        icon.label:SetJustifyH("CENTER")
-        icon.label:SetWidth(colW - 4)
-        icon.label:SetPoint("TOP", icon, "BOTTOM", 0, -6)
-        card.rotation[i] = icon
+        local slot = W.Icon(card, 36)
+        slot:SetPoint("TOPLEFT", 18 + (i - 1) * colW + (colW - 36) / 2, -156)
+        slot.label = W.Font(card, 11, C.muted)
+        slot.label:SetJustifyH("CENTER")
+        slot.label:SetWidth(colW - 4)
+        slot.label:SetPoint("TOP", slot, "BOTTOM", 0, -6)
+        card.rotation[i] = slot
         if i > 1 then
             local arrow = W.Arrow(card)
             arrow:SetPoint("CENTER", card, "TOPLEFT", 18 + (i - 1) * colW, -174)
@@ -286,19 +316,24 @@ function BuildsWindow:Create()
         end
     end
 
+    -- What joins the rotation later, with levels
+    card.later = W.Font(card, 12, C.muted)
+    card.later:SetPoint("TOPLEFT", 18, -236)
+    card.later:SetWidth(CARD_W - 36)
+
     local cmpTitle = W.Section(card, L.B_COMPARE)
-    cmpTitle:SetPoint("TOPLEFT", 18, -262)
+    cmpTitle:SetPoint("TOPLEFT", 18, -294)
     card.lines = {}
     for i = 1, 2 do
         local mark = W.Mark(card, 14)
-        mark:SetPoint("TOPLEFT", 18, -264 - i * 24)
+        mark:SetPoint("TOPLEFT", 18, -296 - i * 24)
         local text = W.Font(card, 13, C.text)
-        text:SetPoint("TOPLEFT", 40, -264 - i * 24)
+        text:SetPoint("TOPLEFT", 40, -296 - i * 24)
         text:SetWidth(CARD_W - 60)
         card.lines[i] = { mark = mark, text = text }
     end
     card.auto = W.Font(card, 12, C.muted)
-    card.auto:SetPoint("TOPLEFT", 18, -346)
+    card.auto:SetPoint("TOPLEFT", 18, -378)
     card.auto:SetWidth(CARD_W - 36)
 
     card.spec1 = specButton(card, function() self:SetSpec(1) end)
@@ -374,16 +409,18 @@ function BuildsWindow:Draw()
     end
     card.stats:SetText(cm.stats or "")
 
-    for i, icon in ipairs(card.rotation) do
+    card.rotTitle:SetText(string.format(L.B_ROTATION_AT, m.level))
+    for i, ic in ipairs(card.rotation) do
         local r = cm.rotation[i]
-        icon:SetShown(r ~= nil)
-        icon.label:SetShown(r ~= nil)
+        ic:SetShown(r ~= nil)
+        ic.label:SetShown(r ~= nil)
         if r then
-            icon.set(r.texture, r.proc and C.proc or C.border)
-            icon.label:SetText(r.label)
+            ic.set(r.texture, r.proc and C.proc or C.border)
+            ic.label:SetText(r.label)
         end
         if card.arrows[i] then card.arrows[i]:SetShown(r ~= nil) end
     end
+    card.later:SetText(cm.later or "")
 
     for i, line in ipairs(card.lines) do
         local l = i == 1 and cm.first or cm.second

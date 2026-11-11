@@ -166,31 +166,6 @@ function Builds.Compare(buildRanks, playerRanks, level, unspent)
     return out
 end
 
--- The first distinct actions of the profile a build leads to: the rotation shown on its card.
-function Builds.RotationOf(build, mode, count)
-    local def = Data.class
-    if not def then return {} end
-    local profile = ns.BuildMatcher.Select(def, Data.profiles, nil, {}, mode or ns.Modes.current, build and build.lead)
-    -- Plain rotation lines in order; procs go last ("on proc"); gated, wand, utility, AoE and
-    -- early-level fallback lines (conditions with !known.) are left out.
-    count = count or 5
-    local out, procs, seen = {}, {}, {}
-    for _, entry in ipairs(profile and profile.main or {}) do
-        local key, cond = entry[1], entry[2] or ""
-        local sp = def.spells[key]
-        local skip = not sp or entry.gate or sp.role == "wand" or sp.role == "utility" or sp.role == "aoe"
-            or cond:find("!known.", 1, true)
-        if not skip and not seen[key] then
-            seen[key] = true
-            if entry.glow then procs[#procs + 1] = { key = key, proc = true } else out[#out + 1] = { key = key } end
-        end
-    end
-    local plain = math.min(#out, count - math.min(#procs, 1))
-    for i = #out, plain + 1, -1 do out[i] = nil end
-    if procs[1] and #out < count then out[#out + 1] = procs[1] end
-    return out
-end
-
 Events:On("FC_BUILD_CHOSEN", Builds, function()
     ns.BuildMatcher:Update()
     Events:Fire("FC_DIRTY")

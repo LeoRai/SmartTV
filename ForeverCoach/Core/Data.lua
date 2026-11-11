@@ -12,6 +12,8 @@
 --     cooldown = seconds, gcd = false (off the global cooldown),
 --     buff = "buffKey" (cast puts this buff on the player), consumes = "buffKey",
 --     requires = "debuffKey" (only castable while that debuff is up),
+--     consumesDebuff = "debuffKey" (the cast removes that debuff from the target),
+--     keepsDebuff = { talent, rank } (with this talent rank the debuff stays),
 --     talent = "talentKey" (needs that talent), pet = true (demon ability), petFamily = "voidwalker",
 --     harmful = false (no hostile target needed; default true for damage roles)
 --   }
@@ -122,6 +124,15 @@ end
 Data.PerRank = perRank
 
 function Data.Duration(sp, rank) return perRank(sp.duration, rank) end
+
+-- The debuff a cast removes from the target, given the player's talents (nil: none).
+function Data.ConsumedDebuff(sp, talents)
+    local key = sp.consumesDebuff
+    if not key then return nil end
+    local keep = sp.keepsDebuff
+    if keep and ((talents or {})[keep.talent] or 0) >= (keep.rank or 1) then return nil end
+    return key
+end
 function Data.Cast(sp, rank) return perRank(sp.cast, rank) or 0 end
 
 -- Highest known rank of every spell: out[key] = spellID, outRank[key] = rank index.

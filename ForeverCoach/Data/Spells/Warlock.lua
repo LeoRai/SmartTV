@@ -74,13 +74,17 @@ ns.Data:DefineClass("WARLOCK", function()
                 role = "execute", source = "trainer", talent = "shadowburn", cooldown = 15,
                 ranks = { {17877, 20, "talent"}, {18867, 24}, {18868, 32}, {18869, 40}, {18870, 48}, {18871, 56} },
             },
-            conflagrate = { -- Forever: a trainer spell from 32, no longer a talent
-                role = "filler", source = "trainer", cooldown = 10, requires = "immolate",
-                ranks = { {1293818, 32}, {17962, 40}, {18930, 48}, {18931, 54}, {18932, 60} },
+            conflagrate = { -- Forever: rank 1 from the talent (Destruction row 4: level 25 at the earliest),
+                -- the trainer sells the next ranks to those who have it (stage 0 dump). Burns Immolate
+                -- away, unless Shadow and Flame is full (Talents Forever text of that talent).
+                role = "filler", source = "trainer", talent = "conflagrate", cooldown = 10, requires = "immolate",
+                consumesDebuff = "immolate", keepsDebuff = { talent = "shadow_and_flame", rank = 5 },
+                ranks = { {1293817, 25, "talent"}, {1293818, 32}, {17962, 40}, {18930, 48}, {18931, 54}, {18932, 60} },
             },
-            incinerate = { -- new in Forever
-                role = "filler", source = "trainer", cast = 2.5,
-                ranks = { {1293812, 50}, {1293813, 60} },
+            incinerate = { -- new in Forever: the last talent of Destruction (row 7: level 40 at the earliest),
+                -- the trainer sells ranks 2 and 3. Not in any rotation yet: Talents Forever has no text for it.
+                role = "filler", source = "trainer", talent = "incinerate", cast = 2.5,
+                ranks = { {412758, 40, "talent"}, {1293812, 50}, {1293813, 60} },
             },
             rain_of_fire = {
                 role = "aoe", source = "trainer", channel = true, cast = 8,
@@ -215,6 +219,11 @@ ns.Data:DefineClass("WARLOCK", function()
             demonic_sacrifice = { ids = { 18788 }, tree = 2 },
             soul_link = { ids = { 19028 }, tree = 2 },
             shadowburn = { ids = { 17877 }, tree = 3 },
+            conflagrate = { ids = { 1293817 }, tree = 3 },
+            shadow_and_flame = { ids = { 426316 }, tree = 3 },
+            incinerate = { ids = { 412758 }, tree = 3 },
+            demonic_brand = { ids = { 1293695 }, tree = 2 },
+            decimation = { ids = { 440870 }, tree = 2 },
         },
 
         -- Items: ids from best to worst; the best one in the bags is used.

@@ -122,6 +122,12 @@ function Timers:OnCastSucceeded(spellID, t, targetGUID)
         self.buffs[sp.buff] = t + (def.buffs[sp.buff].duration or 0)
     end
     if sp.consumes then self.buffs[sp.consumes] = nil end
+    local eaten = Data.ConsumedDebuff(sp, ns.State and ns.State.talents)
+    if eaten then
+        local g = guidKey(targetGUID or (wasCast and current.guid) or self:CurrentTarget())
+        if self.debuffs[g] then self.debuffs[g][eaten] = nil end
+        if self.applied[g] then self.applied[g][eaten] = nil end
+    end
     if sp.role == "summon" and def.pets then
         for family, p in pairs(def.pets) do
             if p.summon == key then

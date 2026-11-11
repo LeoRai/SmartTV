@@ -18,6 +18,7 @@ function M.data()
                     { name = "Demonology", talents = {
                         { name = "Demonic Sacrifice", max = 1, spell = 18788, node = 105900, row = 1, col = 2 },
                         { name = "Fel Domination", max = 1, spell = 18708, node = 105895, row = 1, col = 3 },
+                        { name = "Demonic Brand", max = 3, spell = 1293695, node = 105896, row = 1, col = 4 },
                     } },
                     { name = "Destruction", talents = {
                         { name = "Shadowburn", max = 1, spell = 17877, node = 105884, row = 1, col = 3 },

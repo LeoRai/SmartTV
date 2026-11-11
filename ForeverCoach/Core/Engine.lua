@@ -279,6 +279,8 @@ end
 local function applyEffects(ctx, key, sp, landing)
     local s = ctx.s
     if sp.consumes and buffRemains(ctx, sp.consumes) > 0 then ctx.buffs[sp.consumes] = false end
+    local eaten = Data.ConsumedDebuff(sp, s.talents)
+    if eaten then ctx.debuffs[eaten] = false end
     ctx.last[key] = ctx.t
     if sp.duration and sp.harmful then
         ctx.debuffs[key] = landing + (Data.Duration(sp, s.knownRank[key]) or 0)

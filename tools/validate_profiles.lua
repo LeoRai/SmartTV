@@ -41,6 +41,14 @@ local function validateClass(problems, token, def)
         for _, field in ipairs({ "buff", "consumes" }) do
             if sp[field] then check(problems, def.buffs and def.buffs[sp[field]], "%s: unknown buff '%s'", w, sp[field]) end
         end
+        if sp.consumesDebuff then
+            local eaten = def.spells[sp.consumesDebuff]
+            check(problems, eaten and eaten.duration, "%s: consumes '%s' which leaves no debuff", w, sp.consumesDebuff)
+        end
+        if sp.keepsDebuff then
+            check(problems, def.talents and def.talents[sp.keepsDebuff.talent], "%s: unknown talent '%s'", w,
+                tostring(sp.keepsDebuff.talent))
+        end
         if sp.requires then
             local req = def.spells[sp.requires]
             check(problems, req and req.duration, "%s: requires '%s' which leaves no debuff", w, sp.requires)

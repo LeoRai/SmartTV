@@ -113,13 +113,33 @@ describe("Builds", function()
         assert.equal(1, spent)
     end)
 
-    it("shows the rotation a build leads to: plain lines in order, the proc last", function()
-        local rot = Builds.RotationOf({ lead = "Affliction" }, "leveling", 5)
-        local keys = {}
-        for i, r in ipairs(rot) do keys[i] = r.key end
-        assert.same({ "siphon_life", "curse_of_agony", "corruption", "drain_life", "shadow_bolt" }, keys)
-        assert.is_true(rot[5].proc)
-        assert.equal(3, #Builds.RotationOf({ lead = "Affliction" }, "leveling", 3))
+    it("shows a build's rotation at the player's level and what joins it later", function()
+        -- level 18 with 9 points elsewhere: the Demonology build's points come at 19, 20, 21
+        addon.learnUpTo(ns, W, 18)
+        W.traits = { [IC] = 5, [NF] = 2, [SL] = 1, [SB] = 1 }
+        addon.rescan(ns)
+        addon.compute(ns, W)
+        local def = ns.Data.class
+        local build = ns.TalentsForever.Decode("WARLOCK", "warlock/60/-113--12") -- Sacrifice, Domination, Brand 3/3
+        local plan = ns.Planner.TalentsAt(def, build, W.traits, 18, 60)
+        assert.equal(19, plan[1].first)
+        assert.equal(21, plan[3].first) -- Demonic Brand's first point
+        local profile = ns.Data.profiles.Warlock_Demonology_Leveling
+        local _, s = addon.compute(ns, W)
+        local later = ns.Planner.Upcoming(def, profile, s, 18, build)
+        local at = {}
+        for _, u in ipairs(later) do at[u.key] = u end
+        -- Searing Pain is known from 18, but the rotation uses it only with Demonic Brand
+        assert.equal(21, at.searing_pain.level)
+        assert.equal("aoe", at.hellfire.kind)
+        assert.equal(30, at.hellfire.level)
+        assert.is_nil(at.siphon_life) -- this build does not take it
+        -- the window: Demonology's rotation now, and the line of what comes later
+        ns.BuildsWindow.link = { code = "warlock/60/-113--12", lead = "Demonology", pts = { 0, 5, 0 }, ranks = build, source = "link" }
+        local m = ns.BuildsWindow:Model()
+        assert.equal("curse_of_agony", m.card.rotation[1].key)
+        assert.matches("spell5676 from 21", m.card.later)
+        assert.matches("spell1949 from 30 %(3%+ enemies%)", m.card.later)
     end)
 
     it("opens the second spec from level 40", function()

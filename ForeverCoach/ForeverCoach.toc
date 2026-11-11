@@ -4,7 +4,7 @@
 ## Notes: Rotation coach for WoW Forever: suggests the next ability for your class, build, level and situation. You press, it only suggests. Co-author: Talents Forever (baldwinbuilds), builds.
 ## Notes-ruRU: Помощник ротации для WoW Forever: подсказывает следующую способность под класс, билд, уровень и ситуацию. Нажимаешь ты сам. Соавтор: Talents Forever (baldwinbuilds), билды.
 ## Author: ForeverCoach contributors; co-author: Talents Forever (baldwinbuilds)
-## Version: 0.4.1-alpha
+## Version: 0.4.2-alpha
 ## X-License: MIT
 ## X-Website: https://github.com/leorai/smarttv
 ## SavedVariablesPerCharacter: ForeverCoachCharDB
@@ -26,6 +26,8 @@ Core\Data.lua
 Data\Spells\Warlock.lua
 Data\Profiles\Warlock_Generic_Leveling.lua
 Data\Profiles\Warlock_Affliction_Leveling.lua
+Data\Profiles\Warlock_Demonology_Leveling.lua
+Data\Profiles\Warlock_Destruction_Leveling.lua
 Data\Builds.lua
 Data\Quests.lua
 Data\Trainers.lua

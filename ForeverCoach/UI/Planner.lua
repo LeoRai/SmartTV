@@ -12,11 +12,11 @@ local C = W.C
 local PlannerWindow = { at = nil }
 ns.PlannerWindow = PlannerWindow
 
-local WIDTH, HEIGHT = 840, 620
+local WIDTH, HEIGHT = 840, 660
 local LEFT_X, LEFT_W = 22, 480
 local RIGHT_X, RIGHT_W = 520, 298
 local NEED_ROWS, NEED_H, NEED_GAP = 7, 50, 7
-local NEW_LINES, TALENT_LINES, ROTATION, QUESTS, LEVELS = 2, 3, 4, 4, 6
+local NEW_LINES, TALENT_LINES, ROTATION, QUESTS, LEVELS = 2, 3, 5, 4, 6
 
 local STATUS_COLOR = { trainer = C.gold, talent = C.proc, nobar = C.danger, level = C.muted, quest = C.teal }
 
@@ -188,11 +188,27 @@ function PlannerWindow:Model()
     else
         m.talentNote = L.P_TALENTS_NO_BUILD
     end
-    local talentsThen = planned and Planner.TalentKeysAt(def, s.talents, planned) or nil
-    m.rotation = {}
-    for i, r in ipairs(Planner.RotationAt(def, ns.Loop.current, at, s, ROTATION, talentsThen)) do
-        m.rotation[i] = { key = r.key, id = r.id, texture = API.SpellTexture(r.id) }
+    -- The rotation now and at that level (distinct actions in priority order; the proc once the
+    -- talent that gives it is there). Those that are new at that level are marked.
+    local function rotation(atLevel, talents, actual)
+        local out = {}
+        for _, r in ipairs(Planner.Distinct(Planner.RotationAt(def, ns.Loop.current, atLevel, s, 8, talents, actual))) do
+            if #out < ROTATION then out[#out + 1] = { key = r.key, id = r.id, texture = API.SpellTexture(r.id) } end
+        end
+        for _, b in pairs(def.buffs or {}) do
+            local sp = b.glow and def.spells[b.glow]
+            if sp and b.talent and ((talents or s.talents)[b.talent] or 0) > 0 and #out < ROTATION then
+                out[#out + 1] = { key = "proc:" .. b.glow, id = sp.ranks[1][1], proc = true,
+                                  texture = API.SpellTexture(s.known[b.glow] or sp.ranks[1][1]) }
+            end
+        end
+        return out
     end
+    m.rotationNow = rotation(level, nil, true) -- what the live hint uses: learned spells, taken talents
+    m.rotation = rotation(at, planned and Planner.TalentKeysAt(def, s.talents, planned) or nil)
+    local before = {}
+    for _, r in ipairs(m.rotationNow) do before[r.key] = true end
+    for _, r in ipairs(m.rotation) do r.new = not before[r.key] end
 
     -- Class quests
     m.quests = {}
@@ -258,7 +274,7 @@ function PlannerWindow:Create()
     f.needsNone:SetPoint("TOPLEFT", LEFT_X, -176)
 
     -- Level preview
-    local pv = W.Panel(f, RIGHT_W, 352)
+    local pv = W.Panel(f, RIGHT_W, 418)
     pv:SetPoint("TOPLEFT", RIGHT_X, -66)
     local pvTitle = W.Section(pv, L.P_PREVIEW)
     pvTitle:SetPoint("TOPLEFT", 18, -18)
@@ -303,24 +319,30 @@ function PlannerWindow:Create()
     pv.talNote = W.Font(pv, 12, C.muted)
     pv.talNote:SetPoint("TOPLEFT", 18, -204)
     pv.talNote:SetWidth(RIGHT_W - 36)
-    pv.rotTitle = W.Font(pv, 12, C.muted)
-    pv.rotTitle:SetPoint("TOPLEFT", 18, -280)
-    pv.rotation, pv.arrows = {}, {}
-    for i = 1, ROTATION do
-        local icon = W.Icon(pv, 30)
-        icon:SetPoint("TOPLEFT", 18 + (i - 1) * 48, -302)
-        pv.rotation[i] = icon
-        if i > 1 then
-            local arrow = W.Arrow(pv)
-            arrow:SetPoint("CENTER", pv, "TOPLEFT", 18 + (i - 1) * 48 - 9, -317)
-            pv.arrows[i] = arrow
+    -- Two rows: the rotation now and at that level, new actions in a gold frame.
+    local function iconRow(y)
+        local row = { icons = {}, arrows = {} }
+        row.title = W.Font(pv, 12, C.muted)
+        row.title:SetPoint("TOPLEFT", 18, y)
+        for i = 1, ROTATION do
+            local ic = W.Icon(pv, 30)
+            ic:SetPoint("TOPLEFT", 18 + (i - 1) * 48, y - 20)
+            row.icons[i] = ic
+            if i > 1 then
+                local arrow = W.Arrow(pv)
+                arrow:SetPoint("CENTER", pv, "TOPLEFT", 18 + (i - 1) * 48 - 9, y - 35)
+                row.arrows[i] = arrow
+            end
         end
+        return row
     end
+    pv.rotNow = iconRow(-280)
+    pv.rotAt = iconRow(-344)
     f.preview = pv
 
     -- Class quests
     local qs = W.Panel(f, RIGHT_W, 148)
-    qs:SetPoint("TOPLEFT", RIGHT_X, -432)
+    qs:SetPoint("TOPLEFT", RIGHT_X, -498)
     local qsTitle = W.Section(qs, L.P_QUESTS)
     qsTitle:SetPoint("TOPLEFT", 18, -18)
     qs.rows = {}
@@ -411,13 +433,17 @@ function PlannerWindow:Draw()
     end
     pv.talNote:SetShown(m.talentNote ~= nil)
     pv.talNote:SetText(m.talentNote or "")
-    pv.rotTitle:SetText(string.format(L.P_ROTATION_AT, m.at))
-    for i, icon in ipairs(pv.rotation) do
-        local r = m.rotation[i]
-        icon:SetShown(r ~= nil)
-        if r then icon.set(r.texture) end
-        if pv.arrows[i] then pv.arrows[i]:SetShown(r ~= nil) end
+    local function drawRow(row, title, list)
+        row.title:SetText(title)
+        for i, ic in ipairs(row.icons) do
+            local r = list[i]
+            ic:SetShown(r ~= nil)
+            if r then ic.set(r.texture, r.new and C.gold or (r.proc and C.proc or nil)) end
+            if row.arrows[i] then row.arrows[i]:SetShown(r ~= nil) end
+        end
     end
+    drawRow(pv.rotNow, string.format(L.P_ROTATION_NOW, m.level), m.rotationNow)
+    drawRow(pv.rotAt, string.format(L.P_ROTATION_AT, m.at), m.rotation)
 
     for i, r in ipairs(f.quests.rows) do
         local q = m.quests[i]
