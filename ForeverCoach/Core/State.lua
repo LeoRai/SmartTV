@@ -138,13 +138,19 @@ end
 
 local plates = {}
 
-local function countEnemies(fillerID, targetEnemy, inCombat)
+-- The target's own nameplate is recognised by GUID (readable in combat in Forever); a unit
+-- comparison may be hidden and would count the target twice.
+local function countEnemies(fillerID, targetEnemy, inCombat, targetGUID)
     local n, targetCounted = 0, false
     for _, unit in ipairs(API.NamePlateUnits(plates)) do
         if API.CanAttack(unit) and not API.IsDead(unit) and API.InCombat(unit) ~= false
             and (not fillerID or API.SpellInRange(fillerID, unit) ~= false) then
             n = n + 1
-            if UnitIsUnit and API.Clean(UnitIsUnit(unit, "target")) then targetCounted = true end
+            if targetGUID and API.GUID(unit) == targetGUID then
+                targetCounted = true
+            elseif not targetGUID and UnitIsUnit and API.Clean(UnitIsUnit(unit, "target")) then
+                targetCounted = true
+            end
         end
     end
     if targetEnemy and inCombat and not targetCounted then n = n + 1 end
@@ -348,7 +354,7 @@ function State:Refresh(now)
     s.shards = s.items.soul_shard and s.items.soul_shard.count or 0
 
     -- Enemies near ---------------------------------------------------------
-    s.enemies = countEnemies(fillerID, t.enemy, p.in_combat)
+    s.enemies = countEnemies(fillerID, t.enemy, p.in_combat, t.guid)
 
     return s
 end

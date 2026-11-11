@@ -206,3 +206,44 @@ describe("A cast that just finished", function()
         assert.equal("immolate", mainAction())
     end)
 end)
+
+describe("Fixes from the full review", function()
+    local ns, W
+    before_each(function()
+        ns, W = addon.load()
+        addon.learnUpTo(ns, W, 12)
+        W.target = { hp = 100, hpMax = 100, enemy = true, guid = "mob-1" }
+        W.player.combat = true
+        W.auraError = true
+    end)
+
+    it("keeps own debuffs for a target kept through /reload", function()
+        -- No PLAYER_TARGET_CHANGED since login: the target was already selected.
+        ns.Events:Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "a", 980)
+        local _, s = addon.compute(ns, W)
+        assert.is_truthy(s.debuffs.curse_of_agony)
+    end)
+
+    it("does not count the target twice when its nameplate is shown", function()
+        W.units.nameplate1 = { enemy = true, combat = true, guid = "mob-1" }
+        W.plates = { "nameplate1" }
+        _G.UnitIsUnit = function() return ns.API.IsSecret and require("helpers.wow").secret() end
+        local _, s = addon.compute(ns, W)
+        assert.equal(1, s.enemies)
+    end)
+
+    it("wand shots do not restart the global cooldown", function()
+        ns.Events:Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "w1", 5019)
+        local r = addon.compute(ns, W)
+        assert.equal(0, r.main[1].wait)
+    end)
+
+    it("a refused press of another spell leaves the cast alone", function()
+        W.castTimes[705] = 2800
+        ns.Events:Fire("UNIT_SPELLCAST_START", "player", "c", 705)
+        ns.Events:Fire("UNIT_SPELLCAST_FAILED", "player", "x", 172)
+        assert.is_table(ns.Timers.cast)
+        ns.Events:Fire("UNIT_SPELLCAST_FAILED", "player", "c", 705)
+        assert.is_nil(ns.Timers.cast)
+    end)
+end)

@@ -366,6 +366,8 @@ local function showGate(f, rec, color)
     elseif warn then
         f.ring:SetAlpha(0)
         API.BindGate(f.ring, rec.gate, rec.threshold)
+    else
+        f.ring:SetAlpha(1) -- the frame may come from a warning gate before
     end
 end
 

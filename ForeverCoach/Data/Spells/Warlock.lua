@@ -90,8 +90,8 @@ ns.Data:DefineClass("WARLOCK", function()
                 role = "aoe", source = "trainer", channel = true, cast = 15,
                 ranks = { {1949, 30}, {11683, 42}, {11684, 54} },
             },
-            shoot = {
-                role = "wand", source = "class", wand = true, cast = 1.5,
+            shoot = { -- auto-repeat: every shot reports success, none of them restarts the global cooldown
+                role = "wand", source = "class", wand = true, cast = 1.5, gcd = false,
                 ranks = { {5019, 1} },
             },
 

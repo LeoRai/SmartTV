@@ -51,7 +51,7 @@ function Timers:OnCastStart(spellID, t, channel)
     local castTime = API.CastTime(spellID) or Data.Cast(sp, rank)
     self.cast = {
         key = key, id = spellID, startTime = t, endTime = t + castTime, channel = channel,
-        guid = self.targetGUID,
+        guid = self:CurrentTarget(),
     }
     if sp.gcd ~= false then self.gcdEnd = t + (def.gcd or 1.5) end
 end
@@ -72,9 +72,17 @@ function Timers:OnCastStop(t)
     end
 end
 
--- FAILED / INTERRUPTED / CHANNEL_STOP: nothing lands.
-function Timers:OnCastCancel()
-    self.cast, self.landing = nil, nil
+-- FAILED / INTERRUPTED / CHANNEL_STOP: nothing lands. Only for the spell being cast: a refused
+-- press of another spell during a cast ("another action is in progress") leaves the cast alone.
+function Timers:OnCastCancel(spellID)
+    local id = API.Clean(spellID)
+    if self.cast and (not id or self.cast.id == id) then self.cast = nil end
+    if self.landing and (not id or self.landing.id == id) then self.landing = nil end
+end
+
+-- The target right now (GUID readable in combat), falling back to the last one seen.
+function Timers:CurrentTarget()
+    return API.GUID("target") or self.targetGUID
 end
 
 -- The cast to play forward at time t: the one in progress, else the one landing right now.
@@ -104,7 +112,7 @@ function Timers:OnCastSucceeded(spellID, t, targetGUID)
     self.last[key] = t
     if sp.cooldown then self.cd[key] = t + sp.cooldown end
     if sp.duration and sp.harmful then
-        local g = guidKey(targetGUID or (wasCast and current.guid) or self.targetGUID)
+        local g = guidKey(targetGUID or (wasCast and current.guid) or self:CurrentTarget())
         self.debuffs[g] = self.debuffs[g] or {}
         self.applied[g] = self.applied[g] or {}
         self.debuffs[g][key] = t + (Data.Duration(sp, rank) or 0)
@@ -191,12 +199,12 @@ Events:On("UNIT_SPELLCAST_START", Timers, function(self, _, _, _, spellID)
 end, "player")
 Events:On("UNIT_SPELLCAST_CHANNEL_START", Timers, function(self, _, _, _, spellID)
     self:OnCastStart(spellID, now(), true)
-    self:OnCastSucceeded(spellID, now(), self.targetGUID) -- channels report success at the start
+    self:OnCastSucceeded(spellID, now(), self:CurrentTarget()) -- channels report success at the start
     dirty()
 end, "player")
 Events:On("UNIT_SPELLCAST_STOP", Timers, function(self) self:OnCastStop(now()); dirty() end, "player")
 for _, event in ipairs({ "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_CHANNEL_STOP" }) do
-    Events:On(event, Timers, function(self) self:OnCastCancel(); dirty() end, "player")
+    Events:On(event, Timers, function(self, _, _, _, spellID) self:OnCastCancel(spellID); dirty() end, "player")
 end
 Events:On("UNIT_SPELLCAST_SUCCEEDED", Timers, function(self, _, _, _, spellID)
     local current = self.cast
@@ -215,4 +223,7 @@ Events:On("SPELL_ACTIVATION_OVERLAY_GLOW_HIDE", Timers, function(self, _, spellI
     if key then self.glow[key] = nil; dirty() end
 end)
 Events:On("UNIT_PET", Timers, function(self) self:DetectPet(); dirty() end, "player")
-Events:On("FC_LOGIN", Timers, function(self) self:DetectPet() end)
+Events:On("FC_LOGIN", Timers, function(self)
+    self:DetectPet()
+    self.targetGUID = API.GUID("target") -- a target kept through /reload
+end)
