@@ -1,0 +1,19 @@
+<!-- Key bindings: Game Menu > Options > Keybindings > AddOns > ForeverCoach.
+     No default keys, so nothing clashes with your layout. -->
+<Bindings>
+    <Binding name="FOREVERCOACH_TOGGLE" header="FOREVERCOACH" category="ADDONS">
+        ForeverCoach_Binding("toggle")
+    </Binding>
+    <Binding name="FOREVERCOACH_BUILDS" category="ADDONS">
+        ForeverCoach_Binding("builds")
+    </Binding>
+    <Binding name="FOREVERCOACH_PLAN" category="ADDONS">
+        ForeverCoach_Binding("plan")
+    </Binding>
+    <Binding name="FOREVERCOACH_RECAP" category="ADDONS">
+        ForeverCoach_Binding("recap")
+    </Binding>
+    <Binding name="FOREVERCOACH_SETTINGS" category="ADDONS">
+        ForeverCoach_Binding("settings")
+    </Binding>
+</Bindings>

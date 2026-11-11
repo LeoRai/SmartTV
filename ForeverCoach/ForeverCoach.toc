@@ -1,0 +1,47 @@
+## Interface: 16001
+## Title: ForeverCoach
+## Title-ruRU: ForeverCoach
+## Notes: Rotation coach for WoW Forever: suggests the next ability for your class, build, level and situation. You press, it only suggests.
+## Notes-ruRU: Помощник ротации для WoW Forever: подсказывает следующую способность под класс, билд, уровень и ситуацию. Нажимаешь ты сам.
+## Author: ForeverCoach contributors; builds data: Talents Forever (baldwinbuilds)
+## Version: 0.1.0-alpha
+## X-License: MIT
+## X-Website: https://github.com/leorai/smarttv
+## SavedVariablesPerCharacter: ForeverCoachCharDB
+## IconTexture: Interface\Icons\Spell_Shadow_ShadowBolt
+## AddonCompartmentFunc: ForeverCoach_OnAddonCompartmentClick
+
+# Locales first: every module reads ns.L
+Locales\enUS.lua
+Locales\ruRU.lua
+
+# Core infrastructure
+Core\Init.lua
+Core\Events.lua
+Core\API.lua
+Core\Data.lua
+
+# Data (only the player's class is kept in memory)
+Data\Spells\Warlock.lua
+Data\Profiles\Warlock_Generic_Leveling.lua
+Data\Profiles\Warlock_Affliction_Leveling.lua
+Data\Builds.lua
+Data\Quests.lua
+
+# Game state and engine
+Core\Timers.lua
+Core\TTD.lua
+Core\Modes.lua
+Core\State.lua
+Core\BuildMatcher.lua
+Core\Conditions.lua
+Core\Engine.lua
+
+# Interface
+UI\ActionBars.lua
+UI\HUD.lua
+UI\Settings.lua
+UI\Minimap.lua
+
+# Wiring: update loop and slash commands
+Core\Loop.lua

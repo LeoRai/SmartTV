@@ -1,4 +1,7 @@
-state/
-my_packages.txt
-__pycache__/
-*.apk
+# Packaged builds
+*.zip
+/dist/
+# Saved variables copied in from the game for debugging
+/WTF/
+*.bak
+.DS_Store

@@ -1,0 +1,10 @@
+## Interface: 16001
+## Title: ForeverCoach Probe
+## Notes: Stage 0 of ForeverCoach: records which game data addons can read in and out of combat. Remove after the test.
+## Notes-ruRU: Этап 0 ForeverCoach: записывает, какие данные игры аддон видит в бою и вне боя. После проверки удалить.
+## Author: ForeverCoach contributors
+## Version: 0.1.0
+## X-License: MIT
+## SavedVariables: ForeverCoachProbeDB
+
+Probe.lua

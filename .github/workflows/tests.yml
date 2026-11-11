@@ -1,0 +1,19 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.1, busted and luacheck
+        run: sudo apt-get update && sudo apt-get install -y lua5.1 lua-busted lua-check
+      - name: Lint
+        run: luacheck ForeverCoach ForeverCoach_Probe tools tests
+      - name: Validate profiles and data
+        run: lua5.1 tools/validate_profiles.lua
+      - name: Tests
+        run: busted
