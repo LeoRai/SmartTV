@@ -64,6 +64,10 @@ L.SURPRISE_LINE = "%s, %.0f s into the fight: suddenly %s, the queue was %s. %s"
 L.SURPRISES_NONE = "No unexpected hint changes so far."
 L.SURPRISES_HEAD = "Unexpected hint changes: %d, the last %d below. They are saved in WTF\\Account\\<account>\\<realm>\\<character>\\SavedVariables\\ForeverCoach.lua: send that file to the developer."
 L.SURPRISES_CLEARED = "The list of unexpected hint changes is cleared."
+L.PRICE_UNKNOWN = "price unknown"
+L.COIN_GOLD = "g"
+L.COIN_SILVER = "s"
+L.COIN_COPPER = "c"
 
 -- Modes
 L.MODE_auto = "Auto"

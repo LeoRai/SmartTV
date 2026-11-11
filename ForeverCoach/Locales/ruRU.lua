@@ -59,6 +59,10 @@ L.SURPRISE_LINE = "%s, %.0f с боя: вдруг %s, а в очереди бы�
 L.SURPRISES_NONE = "Неожиданных смен подсказки пока не было."
 L.SURPRISES_HEAD = "Неожиданных смен подсказки: %d, последние %d ниже. Они сохранены в WTF\\Account\\<учётная запись>\\<сервер>\\<персонаж>\\SavedVariables\\ForeverCoach.lua — пришли этот файл разработчику."
 L.SURPRISES_CLEARED = "Список неожиданных смен подсказки очищен."
+L.PRICE_UNKNOWN = "цена неизвестна"
+L.COIN_GOLD = "з"
+L.COIN_SILVER = "с"
+L.COIN_COPPER = "м"
 
 L.MODE_auto = "Авто"
 L.MODE_leveling = "Прокачка"

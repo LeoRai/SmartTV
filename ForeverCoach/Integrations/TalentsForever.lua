@@ -24,6 +24,13 @@ end
 
 function TF.Available() return TF.Data() ~= nil end
 
+-- The class talent tree's ID in the client (C_Traits), or nil.
+function TF.TreeID(class, d)
+    d = d or TF.Data()
+    local c = d and d.classes[class]
+    return c and tonumber(c.tree) or nil
+end
+
 -- Talent layout of a class: spell -> tree, tree names, talents per tree.
 local layouts = {}
 function TF.Layout(class, d)
@@ -107,7 +114,13 @@ function TF.Builds(class, mode, d)
     d = d or TF.Data()
     local pop = d and d.popular and d.popular[class]
     if not pop then return {} end
-    local list = mode and pop.fors and pop.fors[TF.MODE_LIST[mode] or mode] or pop.top or {}
+    -- A mode without its own list has no builds (the overall top list is the "all" tab).
+    local list
+    if mode then
+        list = pop.fors and pop.fors[TF.MODE_LIST[mode] or mode] or {}
+    else
+        list = pop.top or {}
+    end
     local out = {}
     for i, b in ipairs(list) do
         local lead = b.lead

@@ -28,6 +28,7 @@ Data\Profiles\Warlock_Generic_Leveling.lua
 Data\Profiles\Warlock_Affliction_Leveling.lua
 Data\Builds.lua
 Data\Quests.lua
+Data\Trainers.lua
 
 # Game state and engine
 Core\Timers.lua
@@ -36,6 +37,8 @@ Core\Modes.lua
 Core\State.lua
 Integrations\TalentsForever.lua
 Core\BuildMatcher.lua
+Core\Builds.lua
+Core\Planner.lua
 Core\Conditions.lua
 Core\Engine.lua
 Core\Surprises.lua

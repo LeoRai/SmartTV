@@ -1,47 +1,7 @@
 -- Talents Forever integration on a small copy of its data layout.
 local addon = require("helpers.addon")
 
--- Same shape as TalentsForeverBookData (TalentsForeverBook/Data.lua), three tiny trees.
-local function fakeData()
-    return {
-        build = "1.60.1.70755", codeVersion = "12",
-        classes = {
-            WARLOCK = {
-                name = "Warlock",
-                trees = {
-                    { name = "Affliction", talents = {
-                        { name = "Improved Corruption", max = 5, spell = 17810, node = 105924 },
-                        { name = "Nightfall", max = 2, spell = 18094, node = 105914 },
-                        { name = "Siphon Life", max = 1, spell = 18265, node = 105912 },
-                    } },
-                    { name = "Demonology", talents = {
-                        { name = "Demonic Sacrifice", max = 1, spell = 18788, node = 105900 },
-                        { name = "Fel Domination", max = 1, spell = 18708, node = 105895 },
-                    } },
-                    { name = "Destruction", talents = {
-                        { name = "Shadowburn", max = 1, spell = 17877, node = 105884 },
-                    } },
-                },
-            },
-        },
-        popular = {
-            WARLOCK = {
-                builds = 127534, window = "since the Oct 15 patch", asOf = "2026-11-05",
-                spec = { { "Affliction", 40 }, { "Demonology", 38 }, { "Destruction", 22 } },
-                top = {
-                    { code = "warlock/60/521-11-1-12", lead = "Affliction", pts = { 8, 2, 1 }, rank = 1, saved = 453, opened = 4884, variants = 138 },
-                },
-                fors = {
-                    leveling = {
-                        { code = "warlock/60/521-1--12", lead = { "Affliction" }, pts = { 8, 1, 0 } },
-                        { code = "warlock/60/-11-1-12", lead = { "Demonology" }, pts = { 0, 2, 1 } },
-                    },
-                    pve = { { code = "warlock/60/5-11-1-12", lead = { "Demonology" }, pts = { 5, 2, 1 } } },
-                },
-            },
-        },
-    }
-end
+local fakeData = require("helpers.tf").data
 
 describe("Talents Forever", function()
     local ns, W, TF

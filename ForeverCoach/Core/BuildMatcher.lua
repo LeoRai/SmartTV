@@ -1,7 +1,7 @@
 -- Build recognition: talents -> rotation profile.
--- Stage 1: the tree with most points picks the build (Affliction / Demonology / Destruction),
--- key talents confirm it. Stage 2 adds exact matching against Talents Forever builds
--- (Data/Builds.lua, Integrations/TalentsForever.lua) and a manual choice per spec.
+-- The build chosen in the Builds window (Core/Builds.lua, per spec) picks the build; without one,
+-- the tree with most points does (Affliction / Demonology / Destruction), key talents confirm it.
+-- Points per tree come from the trait ranks split by the Talents Forever layout.
 -- Fallback chain: <Class>_<Build>_<Mode> -> <Class>_Generic_<Mode> -> <Class>_<Build>_Leveling
 --                 -> <Class>_Generic_Leveling. Anything but the first is "approximate".
 local ADDON, ns = ...
@@ -34,10 +34,11 @@ end
 
 -- Pure selection, used by the addon and by the tests.
 -- Returns profile, approximate, build name.
-function BuildMatcher.Select(def, profilesById, points, talents, mode)
+-- forcedBuild: the lead tree of the build the player chose in the Builds window (wins over points).
+function BuildMatcher.Select(def, profilesById, points, talents, mode, forcedBuild)
     local className = def.name
     local suffix = Modes.suffix[mode] or "Leveling"
-    local build = BuildMatcher.DominantTree(points, def.trees)
+    local build = forcedBuild or BuildMatcher.DominantTree(points, def.trees)
 
     -- No tree points from the client: guess the build by key talents of the profiles.
     if not build then
@@ -76,7 +77,9 @@ function BuildMatcher:Update()
     local def = Data.class
     if not def then return end
     local State = ns.State
-    local profile, approximate, build = BuildMatcher.Select(def, Data.profiles, State.treePoints, State.talents, Modes.current)
+    local chosen = ns.Builds and ns.Builds.Chosen()
+    local profile, approximate, build = BuildMatcher.Select(def, Data.profiles, State.treePoints, State.talents,
+        Modes.current, chosen and chosen.lead)
     -- The closest popular Talents Forever build of this mode (for the Builds window and /fc state).
     local TF = ns.TalentsForever
     if TF and TF.Available() and State.traits then

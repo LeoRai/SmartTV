@@ -383,6 +383,31 @@ function API.TraitRanks(out)
     return out
 end
 
+-- Free and spent points of the class talent tree (Forever's trait currency). treeID: the class
+-- tree (from Talents Forever's data); without it the first tree with a currency answers.
+-- Returns unspent, spent, or nil when the client does not say.
+function API.TalentPoints(treeID)
+    if not (C_ClassTalents and C_ClassTalents.GetActiveConfigID and C_Traits and C_Traits.GetTreeCurrencyInfo) then
+        return nil
+    end
+    local unspent, spent
+    pcall(function()
+        local configID = C_ClassTalents.GetActiveConfigID()
+        if not configID then return end
+        local trees = treeID and { treeID } or ((C_Traits.GetConfigInfo(configID) or {}).treeIDs) or {}
+        for _, id in ipairs(trees) do
+            local info = C_Traits.GetTreeCurrencyInfo(configID, id, false)
+            local c = info and info[1]
+            local q = c and numberOrNil(c.quantity)
+            if q then
+                unspent, spent = q, numberOrNil(c.spent)
+                return
+            end
+        end
+    end)
+    return unspent, spent
+end
+
 -- name -> rank for all talents (localized names, matched against client spell names).
 function API.TalentRanksByName()
     local out = {}

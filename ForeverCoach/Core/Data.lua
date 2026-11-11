@@ -22,6 +22,7 @@ local Data = {
     profiles = {},  -- id -> profile
     builds = {},    -- Talents Forever builds (Data/Builds.lua)
     quests = {},    -- class quests (Data/Quests.lua)
+    trainers = {},  -- class trainers (Data/Trainers.lua)
     loadAll = false,
 }
 ns.Data = Data
@@ -94,6 +95,13 @@ function Data:DefineQuests(meta, list)
     self.questsMeta = meta
     for _, q in ipairs(list) do
         if self:Wants(q.class) then self.quests[#self.quests + 1] = q end
+    end
+end
+
+function Data:DefineTrainers(meta, list)
+    self.trainersMeta = meta
+    for _, t in ipairs(list) do
+        if self:Wants(t.class) then self.trainers[#self.trainers + 1] = t end
     end
 end
 

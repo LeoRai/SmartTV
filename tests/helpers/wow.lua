@@ -58,6 +58,9 @@ function M.newWorld()
         subzone = "Brill",
         registered = {},     -- events registered on any frame
         auraError = false,   -- Forever in combat: aura reads raise "Auras cannot be accessed"
+        faction = "Horde",
+        maps = { [1458] = "Undercity" }, -- map ID -> name
+        talentPoints = nil,  -- { unspent, spent } of the talent tree currency
         auraCalls = 0,
         noGcdSpell = false,  -- Forever: the global cooldown spell 61304 answers nil
         traits = nil,        -- talent spellID -> rank (trait system); nil = no trait API
@@ -221,6 +224,10 @@ function M.install(W)
     -- Trait system: one tree, one node per talent spell.
     G.C_ClassTalents = { GetActiveConfigID = function() return W.traits and 1 or nil end }
     G.C_Traits = {
+        GetTreeCurrencyInfo = function()
+            local tp = W.talentPoints
+            return tp and { { quantity = tp[1], spent = tp[2], maxQuantity = 51 } } or {}
+        end,
         GetConfigInfo = function() return { treeIDs = { 1 } } end,
         GetTreeNodes = function()
             local nodes = {}
@@ -279,6 +286,12 @@ function M.install(W)
         NewTicker = function() return { Cancel = function() end } end,
     }
     G.UnitName = function(unit) return unit end
+    G.UnitFactionGroup = function() return W.faction, W.faction end
+    G.C_Map = {
+        GetMapInfo = function(id) return W.maps[id] and { mapID = id, name = W.maps[id] } or nil end,
+        GetBestMapForUnit = function() return 1458 end,
+        GetPlayerMapPosition = function() return { GetXY = function() return 0.6162, 0.5251 end } end,
+    }
     G.GetRealZoneText = function() return "Zone" end
     G.UIParent = stub()
     G.Minimap = stub()
