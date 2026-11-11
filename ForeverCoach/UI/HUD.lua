@@ -247,6 +247,20 @@ function HUD:Create()
     for _, g in ipairs(self.mainGates) do g:EnableMouse(false) end
     for _, g in ipairs(self.defenseGates) do g:EnableMouse(false) end
 
+    -- Lines under the block for the main hints the client shows by hidden mana or health
+    -- ("Low mana: Life Tap"): they fade in and leave the main icon in sight.
+    self.alerts, self.alertList, self.takeoverList = {}, {}, {}
+    for i = 1, 2 do
+        local a = createPill(frame)
+        W.Box(a, { 0.055, 0.059, 0.075 }, C.line, 1, 0.9)
+        a.icon = a:CreateTexture(nil, "ARTWORK")
+        a.icon:SetPoint("LEFT", 6, 0)
+        a.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+        a.text:SetPoint("LEFT", a.icon, "RIGHT", 7, 0)
+        a:EnableMouse(false)
+        self.alerts[i] = a
+    end
+
     self.aoe = createPill(frame)
     W.Box(self.aoe, C.window, C.aoe, 1, 0)
     self.aoe.text:SetTextColor(C.aoeText[1], C.aoeText[2], C.aoeText[3], 1)
@@ -299,6 +313,13 @@ function HUD:ApplySettings()
     end
     self.defense:ClearAllPoints()
     self.defense:SetPoint("BOTTOMRIGHT", self.main, "BOTTOMLEFT", -px(12), 0)
+    for i, a in ipairs(self.alerts) do
+        a.icon:SetSize(px(18), px(18))
+        a.text:SetFont(STANDARD_TEXT_FONT, math.max(10, px(12)), "")
+        a.extraWidth = px(18) + 7
+        a:ClearAllPoints()
+        if i == 1 then a:SetPoint("TOP", self.main, "BOTTOM", 0, -px(14)) else a:SetPoint("TOP", self.alerts[i - 1], "BOTTOM", 0, -px(6)) end
+    end
     self.shownNext = nil -- re-anchor the cooldown slot and the AoE label on the next render
 
     local unlocked = not db.locked
@@ -375,9 +396,45 @@ local function showGate(f, rec, color)
     end
 end
 
+-- A gate that takes the main icon over past its threshold (Drain Soul on a dying target). No
+-- faint stage over the main icon: the line under the block has announced it already.
+local function showTakeover(f, rec)
+    if not rec then
+        f:Hide()
+        return
+    end
+    setIcon(f, rec)
+    setRing(f, C.gold, 0.5, true)
+    f:Show()
+    f.ring:SetAlpha(1)
+    if not API.BindGate(f, rec.gate, rec.threshold, nil, "step") then f:SetAlpha(0) end
+end
+
+-- The line under the block: icon, "Low mana: Life Tap", fading in over the warning band.
+local function showAlert(a, rec)
+    if not rec then
+        a.action = nil
+        a:Hide()
+        return
+    end
+    a.action = rec.action
+    a.icon:SetTexture(rec.id and textureFor(rec) or QUESTION)
+    local name = rec.kind == "spell" and API.SpellName(rec.id) or rec.action
+    local label = rec.line.alert and L[rec.line.alert]
+    a.text:SetText(label and (label .. " — " .. tostring(name)) or tostring(name))
+    local c = rec.gate.power == "mana" and C.mana or C.gold
+    a.text:SetTextColor(c[1], c[2], c[3], 1)
+    a:SetBackdropBorderColor(c[1], c[2], c[3], 0.7)
+    fitPill(a, 6, px(26))
+    a:Show()
+    local warn = rec.gate.warn and rec.gate.warn / 100 or nil
+    if not API.BindGate(a, rec.gate, rec.threshold, warn, "ramp") then a:SetAlpha(0) end
+end
+
 local function hideGates(self)
     for i = 1, 2 do self.mainGates[i]:Hide() end
     for i = 1, 3 do self.defenseGates[i]:Hide() end
+    for i = 1, 2 do showAlert(self.alerts[i], nil) end
 end
 
 local function hideAll(self)
@@ -475,7 +532,20 @@ function HUD:Render(r, s, now)
             self.cooldown.label:SetText("")
         end
 
-        for i = 1, 2 do showGate(self.mainGates[i], inCombat and r.gatedMains[i] or nil, C.gold) end
+        -- Gated main hints: a line under the block each (those that only advise first, so Life Tap
+        -- keeps the top line); a takeover gate also covers the main icon past its threshold.
+        local alerts, takeovers = ns.wipe(self.alertList), ns.wipe(self.takeoverList)
+        if inCombat then
+            for _, g in ipairs(r.gatedMains) do if not g.gate.takeover then alerts[#alerts + 1] = g end end
+            for _, g in ipairs(r.gatedMains) do
+                if g.gate.takeover then
+                    alerts[#alerts + 1] = g
+                    takeovers[#takeovers + 1] = g
+                end
+            end
+        end
+        for i = 1, 2 do showAlert(self.alerts[i], alerts[i]) end
+        for i = 1, 2 do showTakeover(self.mainGates[i], takeovers[i]) end
         for i = 1, 3 do showGate(self.defenseGates[i], r.gatedDefense[i], C.danger) end
 
         if r.aoe then

@@ -73,6 +73,10 @@ local function validateProfile(problems, ns, p, L)
     for _, row in ipairs({ "main", "defense", "cooldown" }) do
         for i, entry in ipairs(p[row] or {}) do
             if entry.why then check(problems, rawget(L, entry.why), "%s: %s #%d: no text for '%s'", where, row, i, entry.why) end
+            if entry.alert then
+                check(problems, rawget(L, entry.alert), "%s: %s #%d: no text for '%s'", where, row, i, entry.alert)
+                check(problems, entry.gate ~= nil, "%s: %s #%d: alert without a gate", where, row, i)
+            end
         end
     end
     for i, entry in ipairs(p.prep or {}) do

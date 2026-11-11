@@ -77,6 +77,8 @@ L.READY = "готово"
 L.WHY = "Почему: %s"
 L.PROFILE = "Профиль: %s"
 L.OUT_OF_RANGE = "Цель далеко"
+L.ALERT_LOW_MANA = "Мало маны"
+L.ALERT_EXECUTE = "Цель почти мертва"
 L.NO_MANA = "Не хватает маны"
 L.UNLOCKED_LABEL = "ForeverCoach\nтащи меня"
 

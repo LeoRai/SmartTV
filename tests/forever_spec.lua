@@ -113,7 +113,7 @@ describe("Health gates in Forever", function()
         assert.is_false(r.hasDefense)
     end)
 
-    it("lays Life Tap over the main icon by hidden mana", function()
+    it("hands Life Tap to the display by hidden mana", function()
         local r = addon.compute(ns, W)
         assert.equal("life_tap", r.gatedMains[2].action)
         assert.equal("mana", r.gatedMains[2].gate.power)
@@ -127,27 +127,51 @@ describe("Health gates in Forever", function()
         for _, g in ipairs(r.gatedMains) do assert.are_not.equal("drain_soul", g.action) end
     end)
 
-    it("binds the gated icons to the client's health curve", function()
+    it("binds the gated hints to the client's health and mana curves", function()
         local r, s = addon.compute(ns, W)
         ns.HUD:Render(r, s, W.time)
-        -- Drain Soul and Life Tap over the main icon (icon + its frame each), three over the defense slot.
-        assert.equal(7, W.gateBinds)
+        -- Two lines under the block (Life Tap on top), Drain Soul over the main icon, three over
+        -- the defense slot.
+        assert.equal(6, W.gateBinds)
+        assert.equal("life_tap", ns.HUD.alerts[1].action)
+        assert.equal("drain_soul", ns.HUD.alerts[2].action)
+        assert.equal("drain_soul", ns.HUD.mainGates[1].rec.action)
     end)
 
-    it("fades Drain Soul in from 35% and shows it fully at 20%", function()
+    local function curveAt(world, threshold, third)
+        for _, points in ipairs(world.curves) do
+            if #points == 4 and points[2][1] == threshold and math.abs(points[3][1] - third) < 1e-9 then return points end
+        end
+    end
+
+    it("announces Drain Soul under the block from 35% and takes the main icon over at 20%", function()
         local r, s = addon.compute(ns, W)
         assert.equal(15, r.gatedMain.gate.warn)
         ns.HUD:Render(r, s, W.time)
-        local fade
-        for _, points in ipairs(W.curves) do
-            if #points == 5 and points[2][1] == 0.2 then fade = points end
+        -- the line fades in evenly from 35% to 20%
+        local ramp = curveAt(W, 0.2, 0.35)
+        assert.is_table(ramp)
+        assert.same({ 0, 1 }, ramp[1])
+        assert.equal(0, ramp[3][2])
+        -- the main icon is covered only from 20%: no faint stage over it
+        local step = curveAt(W, 0.2, 0.201)
+        assert.is_table(step)
+        assert.equal(0, step[3][2])
+    end)
+
+    it("shows low mana as a line under the block and leaves the main icon in sight", function()
+        local r, s = addon.compute(ns, W)
+        ns.HUD:Render(r, s, W.time)
+        local ramp = curveAt(W, 0.15, 0.30)
+        assert.is_table(ramp) -- fades in from 30% mana, full at 15%
+        for _, g in ipairs(ns.HUD.mainGates) do
+            assert.are_not.equal("life_tap", g.rec and g.rec.action) -- never over the main icon
         end
-        assert.is_table(fade)
-        assert.same({ 0, 1 }, fade[1])
-        assert.same({ 0.2, 1 }, fade[2])
-        assert.equal(ns.API.WARN_ALPHA, fade[3][2])
-        assert.is_true(math.abs(fade[4][1] - 0.35) < 1e-9)
-        assert.equal(0, fade[4][2])
+        -- out of combat no line
+        W.player.combat = false
+        r, s = addon.compute(ns, W)
+        ns.HUD:Render(r, s, W.time)
+        assert.is_nil(ns.HUD.alerts[1].action)
     end)
 end)
 

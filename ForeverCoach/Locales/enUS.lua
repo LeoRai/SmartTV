@@ -84,6 +84,9 @@ L.READY = "ready"
 L.WHY = "Why: %s"
 L.PROFILE = "Profile: %s"
 L.OUT_OF_RANGE = "Out of range"
+-- A line under the block for a hint the client shows by hidden health or mana (gate alert)
+L.ALERT_LOW_MANA = "Low mana"
+L.ALERT_EXECUTE = "Target almost dead"
 L.NO_MANA = "Not enough mana"
 L.UNLOCKED_LABEL = "ForeverCoach\ndrag me"
 

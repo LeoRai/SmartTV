@@ -13,8 +13,8 @@ ns.Data:DefineProfile("WARLOCK", function()
 
         main = {
             -- Health gates (gate = ...): Forever hides health from addons, the client shows these itself.
-            { "drain_soul", "soul_shards < opt.shards", gate = { unit = "target", below = 20, warn = 15 }, why = "WHY_EXECUTE_SHARD" },
-            { "life_tap", "player.hp_pct > opt.hp", gate = { unit = "player", power = "mana", below = 15, warn = 15 }, why = "WHY_LIFE_TAP" },
+            { "drain_soul", "soul_shards < opt.shards", gate = { unit = "target", below = 20, warn = 15, takeover = true }, alert = "ALERT_EXECUTE", why = "WHY_EXECUTE_SHARD" },
+            { "life_tap", "player.hp_pct > opt.hp", gate = { unit = "player", power = "mana", below = 15, warn = 15 }, alert = "ALERT_LOW_MANA", why = "WHY_LIFE_TAP" },
             { "shadow_bolt", "buff.shadow_trance.up", why = "WHY_PROC", glow = true },
             { "hellfire", "enemies >= 3 & player.hp_pct > 50", why = "WHY_AOE_HELLFIRE" },
             { "rain_of_fire", "enemies >= 3 & !known.hellfire", why = "WHY_AOE_RAIN" },

@@ -188,7 +188,7 @@ local ROWS = { "main", "defense", "cooldown" }
 
 local function compileLine(def, row, i, entry, errors)
     local action, src = entry[1], entry[2] or ""
-    local line = { action = action, src = src, why = entry.why, glow = entry.glow, row = row }
+    local line = { action = action, src = src, why = entry.why, glow = entry.glow, row = row, alert = entry.alert }
     if def.spells[action] then
         line.kind, line.spell = "spell", def.spells[action]
     elseif def.items and def.items[action] then
@@ -213,7 +213,7 @@ local function compileLine(def, row, i, entry, errors)
         end
         local field = g.power == "mana" and "mana_pct" or "hp_pct"
         line.gate = { unit = g.unit, below = g.below, warn = g.warn, power = g.power, field = field,
-                      key = g.unit .. "." .. field .. ":" .. tostring(g.below) }
+                      takeover = g.takeover, key = g.unit .. "." .. field .. ":" .. tostring(g.below) }
     end
     line.fn, line.paths = fn, paths
     line.pathFns = {}

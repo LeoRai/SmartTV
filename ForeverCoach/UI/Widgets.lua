@@ -33,6 +33,7 @@ W.C = {
     aoeText = hex("#F5C27F"),
     teal = hex("#4FB3A9"),
     good = hex("#6FCF97"),
+    mana = hex("#6EA8FE"),
 }
 -- Talent tree colors on bars and legends, in tree order (Affliction, Demonology, Destruction ...).
 W.TREE_COLORS = { W.C.proc, W.C.teal, W.C.aoe }

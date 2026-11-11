@@ -134,10 +134,15 @@ end
 -- to WARN_ALPHA just above the threshold, then is fully shown at the threshold.
 local WARN_ALPHA = 0.4
 API.WARN_ALPHA = WARN_ALPHA
+-- Curve shapes (value 0..1 -> alpha):
+--   nil     full at the threshold and below; in the warning band a faint WARN_ALPHA fading to 0
+--   "ramp"  rises evenly from 0 at threshold + warn to full at the threshold (a line that fades in)
+--   "step"  full at the threshold and below, nothing above (an icon that takes a slot over)
 local curves = {}
-local function gateCurve(threshold, warn)
+local function gateCurve(threshold, warn, shape)
     warn = warn or 0
-    local key = threshold .. ":" .. warn
+    if shape == "step" then warn = 0 end
+    local key = threshold .. ":" .. warn .. ":" .. tostring(shape)
     local curve = curves[key]
     if curve == nil then
         curve = false
@@ -148,7 +153,7 @@ local function gateCurve(threshold, warn)
                 c:AddPoint(0, 1)
                 c:AddPoint(threshold, 1)
                 if warn > 0 and threshold + warn < 1 then
-                    c:AddPoint(edge, WARN_ALPHA)
+                    if shape ~= "ramp" then c:AddPoint(edge, WARN_ALPHA) end
                     c:AddPoint(threshold + warn, 0)
                 else
                     c:AddPoint(edge, 0)
@@ -164,23 +169,23 @@ local function gateCurve(threshold, warn)
 end
 
 -- Returns false when the client can't do it; the caller then keeps the widget hidden.
-function API.BindHealthGate(frame, unit, threshold, warn)
-    local curve = gateCurve(threshold, warn)
+function API.BindHealthGate(frame, unit, threshold, warn, shape)
+    local curve = gateCurve(threshold, warn, shape)
     if not curve or not UnitHealthPercent then return false end
     return (pcall(function() frame:SetAlpha(UnitHealthPercent(unit, true, curve)) end))
 end
 
 -- Same by the player's mana (power type 0): UnitPowerPercent(unit, powerType, usePredicted, curve).
-function API.BindManaGate(frame, unit, threshold, warn)
-    local curve = gateCurve(threshold, warn)
+function API.BindManaGate(frame, unit, threshold, warn, shape)
+    local curve = gateCurve(threshold, warn, shape)
     if not curve or not UnitPowerPercent then return false end
     return (pcall(function() frame:SetAlpha(UnitPowerPercent(unit, 0, true, curve)) end))
 end
 
 -- Health or mana, as the gate says.
-function API.BindGate(frame, gate, threshold, warn)
-    if gate.power == "mana" then return API.BindManaGate(frame, gate.unit, threshold, warn) end
-    return API.BindHealthGate(frame, gate.unit, threshold, warn)
+function API.BindGate(frame, gate, threshold, warn, shape)
+    if gate.power == "mana" then return API.BindManaGate(frame, gate.unit, threshold, warn, shape) end
+    return API.BindHealthGate(frame, gate.unit, threshold, warn, shape)
 end
 
 -- usable, noMana. Either may be nil when hidden.
