@@ -26,7 +26,9 @@ L.HELP = {
     "/fc lock | unlock — закрепить или двигать блок подсказок",
     "/fc minimap — показать или скрыть кнопку у мини-карты",
     "/fc mode auto | leveling | group | pvp — закрепить режим",
-    "/fc builds | plan | recap — окна (появятся на следующих этапах)",
+    "/fc builds — окно билдов (Talents Forever)",
+    "/fc plan — планировщик: учитель, таланты, предпросмотр уровня",
+    "/fc recap — разбор боя (появится на этапе 3)",
     "/fc debug — писать в чат причину каждой подсказки",
     "/fc state — снимок игры, который видит аддон",
     "/fc perf — время обновления",
@@ -138,3 +140,107 @@ L.S_DONE = "Готово"
 L.MINIMAP_TIP_LEFT = "Левая кнопка: настройки"
 L.MINIMAP_TIP_RIGHT = "Правая кнопка: показать или скрыть подсказки"
 L.MINIMAP_TIP_DRAG = "Перетащить: сдвинуть кнопку"
+
+-- Числа: 4 884
+L.THOUSANDS = " "
+
+L.TREE_Affliction = "Колдовство"
+L.TREE_Demonology = "Демонология"
+L.TREE_Destruction = "Разрушение"
+
+L.QUEST_voidwalker = "Демон Бездны"
+L.QUEST_succubus = "Суккуб"
+L.QUEST_felhunter = "Охотник Скверны"
+L.QUEST_felsteed = "Конь Скверны"
+
+L.NOTE_drain_life = "лечит тебя за счёт врага"
+L.NOTE_health_funnel = "лечит демона"
+L.NOTE_life_tap = "здоровье в ману"
+L.NOTE_fear = "выводит врага из боя на время"
+L.NOTE_drain_soul = "осколок души с умирающего врага"
+L.NOTE_corruption = "урон со временем, мгновенно"
+L.NOTE_curse_of_agony = "проклятие: урон со временем"
+L.NOTE_curse_of_weakness = "проклятие: враг бьёт слабее"
+L.NOTE_immolate = "огонь и горение"
+L.NOTE_siphon_life = "урон со временем, лечит тебя"
+L.NOTE_rain_of_fire = "урон по площади"
+L.NOTE_hellfire = "урон вокруг себя, ранит и тебя"
+L.NOTE_death_coil = "лечит тебя и пугает врага"
+L.NOTE_howl_of_terror = "пугает врагов вокруг"
+L.NOTE_shadowburn = "мгновенный добивающий удар"
+L.NOTE_conflagrate = "сжигает Жертвенный огонь ради урона"
+L.NOTE_incinerate = "удар огнём, сильнее по горящей цели"
+L.NOTE_searing_pain = "быстрый удар огнём"
+L.NOTE_soul_fire = "сильный удар огнём за осколок души"
+L.NOTE_create_healthstone = "камень, который лечит"
+L.NOTE_demon_armor = "броня и восстановление здоровья"
+L.NOTE_amplify_curse = "следующее проклятие сильнее"
+L.NOTE_curse_of_doom = "огромный урон через минуту"
+
+L.BUILDS_TITLE = "Билды"
+L.B_TAB_all = "Все"
+L.B_TAB_leveling = "Прокачка"
+L.B_TAB_group = "PvE"
+L.B_TAB_pvp = "PvP"
+L.B_PASTE = "Вставить ссылку"
+L.B_SUBTITLE = "Популярные билды из Talents Forever — обновляются каждый день"
+L.B_SUBTITLE_ASOF = "Популярные билды из Talents Forever — обновляются каждый день · данные от %s"
+L.B_YOURS = "Твой"
+L.B_CHOSEN = "Выбран"
+L.B_LINK = "ссылка"
+L.B_STATS = "Сохранили %s · открыли %s · %s похожих билдов"
+L.B_STATS_LINK = "Билд по ссылке"
+L.B_ROTATION = "РОТАЦИЯ ПОД ЭТОТ БИЛД"
+L.B_ON_PROC = "%s\nпо проку"
+L.B_COMPARE = "СРАВНЕНИЕ С ТВОИМИ ТАЛАНТАМИ"
+L.B_ALL_MATCH = { "Вложенное %d очко совпадает с билдом", "Все %d вложенных очка совпадают с билдом",
+                  "Все %d вложенных очков совпадают с билдом" }
+L.B_NO_POINTS = "Очков талантов пока нет"
+L.B_SOME_MATCH = "С билдом совпадают %d из %d очков"
+L.B_NEXT_AT = "Следующее очко на %d ур.: %s"
+L.B_NEXT_NOW = "Свободное очко — сейчас: %s"
+L.B_DONE = "Билд собран полностью"
+L.B_SPEC = "Спек %d"
+L.B_SPEC2_LOCKED = "Спек 2 · с %d ур."
+L.B_CHOOSE = "Выбрать билд"
+L.B_UNCHOOSE = "Отменить выбор"
+L.B_FOOTER = "Билды: |cffF2C94CTalents Forever|r (baldwinbuilds), соавтор · CC BY 4.0"
+L.B_NO_TF = "Билды берутся из аддона Talents Forever (TalentsForeverBook). Установи его — и здесь появятся популярные билды."
+L.B_EMPTY_TAB = "В этом списке пока нет билдов."
+L.B_PASTE_HINT = "Вставь ссылку или код Talents Forever и нажми Enter"
+L.B_BAD_LINK = "Это не похоже на ссылку или код Talents Forever."
+L.B_AUTO = "Билд не выбран: ротация идёт по твоим талантам."
+L.B_CHOSEN_MSG = "Спек %d: выбран билд %s %s."
+L.B_UNCHOSEN_MSG = "Спек %d: билд не выбран, ротация идёт по твоим талантам."
+
+L.PLANNER_TITLE = "Планировщик"
+L.P_LEVEL = "%d уровень"
+L.P_TRAINER_WAITS = { "У учителя ждёт %d заклинание", "У учителя ждут %d заклинания", "У учителя ждут %d заклинаний" }
+L.P_TRAINER_NONE = "У учителя пока ничего нового"
+L.P_TRAINER_NEXT = "следующее — на %d ур."
+L.P_TRAINER_UNKNOWN = "зайди к учителю класса — аддон запомнит, где он"
+L.P_NEEDS = "ЧТО НУЖНО ДЛЯ РОТАЦИИ БИЛДА"
+L.P_NEEDS_NONE = "Всё выучено и стоит на панелях."
+L.P_MORE = "и ещё %d"
+L.P_RANK = " · ранг %d"
+L.P_ST_trainer = "У учителя"
+L.P_ST_talent = "Талант"
+L.P_ST_nobar = "Нет на панели"
+L.P_ST_level = "%d ур."
+L.P_ST_quest = "Квест · %d ур."
+L.P_SUB_TALENT_NOW = { "Свободно %d очко таланта", "Свободно %d очка таланта", "Свободно %d очков таланта" }
+L.P_SUB_TALENT_AT = "Очко таланта на %d ур."
+L.P_SUB_TALENT_SPELL = "Даёт талант билда"
+L.P_SUB_NOBAR = "Выучен, но не стоит на панели"
+L.P_SUB_LEVEL = { "Откроется через %d уровень", "Откроется через %d уровня", "Откроется через %d уровней" }
+L.P_SUB_QUEST = "Классовый квест, начало у учителя"
+L.P_PREVIEW = "ПРЕДПРОСМОТР УРОВНЯ"
+L.P_NEW_AT = "Новое на %d ур."
+L.P_NOTHING_NEW = "На этом уровне ничего нового"
+L.P_RANKS_MORE = { "%d новый ранг", "%d новых ранга", "%d новых рангов" }
+L.P_ROTATION_AT = "Ротация на %d ур."
+L.P_QUESTS = "КЛАССОВЫЕ КВЕСТЫ"
+L.P_QUEST_DONE = "выполнен"
+
+L.MINIMAP_TIP_SHIFT = "Shift+клик: билды"
+L.MINIMAP_TIP_CTRL = "Ctrl+клик: планировщик"

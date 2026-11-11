@@ -78,7 +78,7 @@ describe("Planner", function()
         local profile = ns.Data.profiles.Warlock_Affliction_Leveling
         local onBars = function(key) return key ~= "fear" end
         local next = { spellID = 18094, name = "Nightfall", rank = 1, level = 14, now = true }
-        local needs = Planner.Needs(def, profile, s, 14, onBars, next)
+        local needs = Planner.Needs(def, profile, s, 14, onBars, next, { siphon_life = true })
         local status = {}
         for _, it in ipairs(needs) do status[it.key] = it.status end
         assert.equal("trainer", status.drain_life)          -- level 14: waiting at the trainer
@@ -87,11 +87,17 @@ describe("Planner", function()
         assert.equal("level", status.rain_of_fire)          -- opens at 20
         assert.equal("quest", status.summon_voidwalker)     -- class quest from 10
         assert.equal("nobar", status.fear)
-        -- order: trainer, talent, not on the bars, later levels, quests
-        local rank = { trainer = 1, talent = 2, nobar = 3, level = 4, quest = 5 }
+        assert.is_nil(status.amplify_curse)                 -- a talent the build does not take
+        -- order: trainer, talent, quest for now, not on the bars, later levels, later quests
         for i = 2, #needs do
-            assert.is_true(rank[needs[i - 1].status] <= rank[needs[i].status])
+            assert.is_true(Planner.Rank(needs[i - 1]) <= Planner.Rank(needs[i]))
         end
+        local voidwalker, fearAt
+        for i, it in ipairs(needs) do
+            if it.key == "summon_voidwalker" then voidwalker = i end
+            if it.key == "fear" then fearAt = i end
+        end
+        assert.is_true(voidwalker < fearAt)
     end)
 
     it("previews the levels ahead: what is new and the rotation there", function()

@@ -26,7 +26,7 @@ read_globals = {
     "C_Spell", "GetSpellInfo", "GetSpellTexture", "IsPlayerSpell", "IsSpellKnown", "C_SpellBook", "Enum",
     "GetSpellCooldown", "IsUsableSpell", "IsSpellInRange", "UnitHealth", "UnitHealthMax", "UnitPower",
     "UnitPowerMax", "UnitExists", "UnitCanAttack", "UnitIsDeadOrGhost", "UnitAffectingCombat", "UnitGUID",
-    "UnitClassification", "UnitLevel", "UnitIsPlayer", "UnitIsUnit", "UnitClass", "UnitCreatureFamily",
+    "IsShiftKeyDown", "IsControlKeyDown", "UnitClassification", "UnitLevel", "UnitIsPlayer", "UnitIsUnit", "UnitClass", "UnitCreatureFamily",
     "GetUnitSpeed", "UnitCastingInfo", "UnitChannelInfo", "C_UnitAuras", "UnitAura", "C_Item", "GetItemCount",
     "C_Container", "GetItemCooldown", "GetItemIcon", "HasWandEquipped", "GetNumTalentTabs", "GetNumTalents",
     "GetTalentInfo", "GetTalentLink", "GetTalentTabInfo", "GetActiveTalentGroup", "GetActiveSpecGroup",

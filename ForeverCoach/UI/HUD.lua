@@ -260,6 +260,8 @@ function HUD:Create()
     self.prep.text:SetPoint("LEFT", self.prep.mark, "RIGHT", 8, 0)
     self.prep.place = W.Font(self.prep, 12, C.muted)
     self.prep.place:SetPoint("LEFT", self.prep.text, "RIGHT", 4, 0)
+    -- "Spells wait at the trainer": a click opens the planner (the line shows out of combat only).
+    self.prep:SetScript("OnMouseUp", function(p) if p.trainer then ns.PlannerWindow:Toggle() end end)
 
     self.label = W.Font(frame, 12, C.gold)
     self.label:SetPoint("BOTTOM", frame, "TOP", 0, 30)
@@ -341,6 +343,8 @@ function HUD:ShowPrep(r, centered)
     if r.prepValue ~= nil then text = string.format(text, r.prepValue) end
     p.text:SetText(text)
     local place = r.prepPlace == "trainer" and ns.db.trainerPlace or nil
+    p.trainer = r.prepPlace == "trainer"
+    p:EnableMouse(p.trainer)
     p.place:SetText(place and ("· " .. place) or "")
     p.extraWidth = 18 + (place and (p.place:GetStringWidth() + 4) or 0)
     fitPill(p, 12, 30)

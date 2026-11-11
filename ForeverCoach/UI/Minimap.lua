@@ -35,7 +35,15 @@ function MinimapButton:Create()
     border:SetPoint("TOPLEFT")
 
     b:SetScript("OnClick", function(_, mouse)
-        ForeverCoach_Binding(mouse == "RightButton" and "toggle" or "settings")
+        if mouse == "RightButton" then
+            ForeverCoach_Binding("toggle")
+        elseif IsShiftKeyDown and IsShiftKeyDown() then
+            ForeverCoach_Binding("builds")
+        elseif IsControlKeyDown and IsControlKeyDown() then
+            ForeverCoach_Binding("plan")
+        else
+            ForeverCoach_Binding("settings")
+        end
     end)
     b:SetScript("OnDragStart", function(btn)
         btn:SetScript("OnUpdate", function()
@@ -53,6 +61,8 @@ function MinimapButton:Create()
         GameTooltip:AddLine("ForeverCoach")
         GameTooltip:AddLine(L.MINIMAP_TIP_LEFT, 1, 1, 1)
         GameTooltip:AddLine(L.MINIMAP_TIP_RIGHT, 1, 1, 1)
+        GameTooltip:AddLine(L.MINIMAP_TIP_SHIFT, 1, 1, 1)
+        GameTooltip:AddLine(L.MINIMAP_TIP_CTRL, 1, 1, 1)
         GameTooltip:AddLine(L.MINIMAP_TIP_DRAG, 0.7, 0.7, 0.7)
         GameTooltip:Show()
     end)

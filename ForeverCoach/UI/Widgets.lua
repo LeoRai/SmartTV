@@ -32,7 +32,10 @@ W.C = {
     aoe = hex("#E8A24A"),
     aoeText = hex("#F5C27F"),
     teal = hex("#4FB3A9"),
+    good = hex("#6FCF97"),
 }
+-- Talent tree colors on bars and legends, in tree order (Affliction, Demonology, Destruction ...).
+W.TREE_COLORS = { W.C.proc, W.C.teal, W.C.aoe }
 local C = W.C
 
 function W.Font(parent, size, color, flags, layer)
@@ -263,6 +266,120 @@ function W.Segmented(parent, width, items, get, set)
         end
     end
     return holder
+end
+
+-- Panel: a slightly lighter block with a border (cards, side panels, list rows).
+function W.Panel(parent, width, height, border)
+    local p = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    p:SetSize(width, height)
+    W.Box(p, C.panel, border or C.line)
+    return p
+end
+
+-- Status pill: colored text in a thin frame of the same color; width follows the text.
+function W.Pill(parent, color)
+    local p = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    p:SetHeight(22)
+    p.text = W.Font(p, 12, color)
+    p.text:SetPoint("CENTER")
+    function p.set(text, c)
+        c = c or color
+        p.text:SetText(text)
+        p.text:SetTextColor(c[1], c[2], c[3], 1)
+        p:SetBackdrop({ bgFile = FLAT, edgeFile = FLAT, edgeSize = 1 })
+        p:SetBackdropColor(c[1], c[2], c[3], 0.12)
+        p:SetBackdropBorderColor(c[1], c[2], c[3], 0.8)
+        p:SetWidth(math.max(40, (p.text:GetStringWidth() or 0) + 18))
+    end
+    return p
+end
+
+-- Spell icon in a thin frame; icon.set(spellID or texture, border color).
+function W.Icon(parent, size)
+    local f = CreateFrame("Frame", nil, parent, "BackdropTemplate")
+    f:SetSize(size, size)
+    W.Box(f, C.field, C.border)
+    f.tex = f:CreateTexture(nil, "ARTWORK")
+    f.tex:SetPoint("TOPLEFT", 1, -1)
+    f.tex:SetPoint("BOTTOMRIGHT", -1, 1)
+    f.tex:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    function f.set(texture, border)
+        f.tex:SetTexture(texture or "Interface\\Icons\\INV_Misc_QuestionMark")
+        local b = border or C.border
+        f:SetBackdropBorderColor(b[1], b[2], b[3], 1)
+    end
+    return f
+end
+
+-- Small arrow between rotation icons (a texture: the game fonts have no arrow glyph).
+function W.Arrow(parent, color)
+    local t = parent:CreateTexture(nil, "ARTWORK")
+    t:SetTexture("Interface\\ChatFrame\\ChatFrameExpandArrow")
+    t:SetSize(10, 10)
+    local c = color or C.dim
+    t:SetVertexColor(c[1], c[2], c[3], 1)
+    return t
+end
+
+-- A mark before a line of text. "check" and "dot" are client textures (the game fonts have no
+-- check or circle glyph); anything else is drawn as text ("+", "!").
+W.MARK_TEXTURES = { check = "Interface\\RaidFrame\\ReadyCheck-Ready", dot = "Interface\\COMMON\\Indicator-Gray" }
+function W.Mark(parent, size)
+    size = size or 14
+    local m = { tex = parent:CreateTexture(nil, "OVERLAY"), text = W.Font(parent, size, C.good) }
+    m.tex:SetSize(size, size)
+    function m:SetPoint(...)
+        self.tex:SetPoint(...)
+        self.text:SetPoint(...)
+    end
+    function m:SetShown(on)
+        self.shown = on and true or false
+        self.tex:SetShown(self.shown and self.isTexture)
+        self.text:SetShown(self.shown and not self.isTexture)
+    end
+    function m:Set(kind, color)
+        local path = W.MARK_TEXTURES[kind]
+        self.isTexture = path ~= nil
+        if path then
+            self.tex:SetTexture(path)
+        else
+            self.text:SetText(kind)
+            local c = color or C.text
+            self.text:SetTextColor(c[1], c[2], c[3], 1)
+        end
+        self:SetShown(self.shown ~= false)
+    end
+    return m
+end
+
+-- One-line text field (a pasted link): Enter calls onEnter(text), Esc clears and hides focus.
+function W.EditLine(parent, width, onEnter)
+    local e = CreateFrame("EditBox", nil, parent, "BackdropTemplate")
+    e:SetSize(width, 30)
+    e:SetAutoFocus(false)
+    e:SetMaxLetters(300)
+    e:SetFont(STANDARD_TEXT_FONT, 13, "")
+    e:SetTextColor(C.text[1], C.text[2], C.text[3], 1)
+    e:SetTextInsets(10, 10, 0, 0)
+    W.Box(e, C.field, C.border)
+    e:SetScript("OnEnterPressed", function(self) onEnter(self:GetText() or "") end)
+    e:SetScript("OnEscapePressed", function(self) self:SetText(""); self:ClearFocus() end)
+    return e
+end
+
+-- Clickable row (list items): a panel that highlights on hover and when selected.
+function W.Row(parent, width, height, onClick)
+    local b = CreateFrame("Button", nil, parent, "BackdropTemplate")
+    b:SetSize(width, height)
+    function b.select(on)
+        if on then W.Box(b, C.border, C.proc, 1, 0.35) else W.Box(b, C.panel, C.line) end
+        b.selected = on
+    end
+    b.select(false)
+    b:SetScript("OnClick", onClick)
+    b:SetScript("OnEnter", function(self) if not self.selected then self:SetBackdropBorderColor(C.border[1], C.border[2], C.border[3], 1) end end)
+    b:SetScript("OnLeave", function(self) if not self.selected then self:SetBackdropBorderColor(C.line[1], C.line[2], C.line[3], 1) end end)
+    return b
 end
 
 -- Number box for thresholds: digits only, clamped, saved on Enter or focus loss.

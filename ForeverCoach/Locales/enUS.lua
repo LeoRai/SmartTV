@@ -30,7 +30,9 @@ L.HELP = {
     "/fc lock | unlock - lock or move the hint block",
     "/fc minimap - show or hide the minimap button",
     "/fc mode auto | leveling | group | pvp - pin the mode",
-    "/fc builds | plan | recap - windows (coming in later stages)",
+    "/fc builds - builds window (Talents Forever)",
+    "/fc plan - planner: trainer, talents, level preview",
+    "/fc recap - combat recap (coming in stage 3)",
     "/fc debug - print the reason for every hint",
     "/fc state - print the current game snapshot",
     "/fc perf - update timing",
@@ -149,3 +151,111 @@ L.S_DONE = "Done"
 L.MINIMAP_TIP_LEFT = "Left click: settings"
 L.MINIMAP_TIP_RIGHT = "Right click: show or hide hints"
 L.MINIMAP_TIP_DRAG = "Drag: move the button"
+
+-- Numbers: 4,884
+L.THOUSANDS = ","
+
+-- Talent trees (Talents Forever names them in English)
+L.TREE_Affliction = "Affliction"
+L.TREE_Demonology = "Demonology"
+L.TREE_Destruction = "Destruction"
+
+-- Class quests
+L.QUEST_voidwalker = "Voidwalker"
+L.QUEST_succubus = "Succubus"
+L.QUEST_felhunter = "Felhunter"
+L.QUEST_felsteed = "Felsteed"
+
+-- What a spell is for, in the planner (optional: a spell without a note shows its name only)
+L.NOTE_drain_life = "heals you at the enemy's cost"
+L.NOTE_health_funnel = "heals the demon"
+L.NOTE_life_tap = "health into mana"
+L.NOTE_fear = "takes an enemy out for a while"
+L.NOTE_drain_soul = "a Soul Shard from a dying enemy"
+L.NOTE_corruption = "damage over time, instant"
+L.NOTE_curse_of_agony = "curse: damage over time"
+L.NOTE_curse_of_weakness = "curse: the enemy hits softer"
+L.NOTE_immolate = "fire damage and burning"
+L.NOTE_siphon_life = "damage over time that heals you"
+L.NOTE_rain_of_fire = "damage in an area"
+L.NOTE_hellfire = "damage around you, hurts you too"
+L.NOTE_death_coil = "heals you and frightens the enemy"
+L.NOTE_howl_of_terror = "frightens the enemies around you"
+L.NOTE_shadowburn = "instant finisher"
+L.NOTE_conflagrate = "burns Immolate away for a burst"
+L.NOTE_incinerate = "fire nuke, stronger on a burning target"
+L.NOTE_searing_pain = "fast fire nuke"
+L.NOTE_soul_fire = "big fire nuke for a Soul Shard"
+L.NOTE_create_healthstone = "a stone that heals"
+L.NOTE_demon_armor = "armor and health regeneration"
+L.NOTE_amplify_curse = "a stronger next curse"
+L.NOTE_curse_of_doom = "a huge hit after a minute"
+
+-- Builds window
+L.BUILDS_TITLE = "Builds"
+L.B_TAB_all = "All"
+L.B_TAB_leveling = "Leveling"
+L.B_TAB_group = "PvE"
+L.B_TAB_pvp = "PvP"
+L.B_PASTE = "Paste a link"
+L.B_SUBTITLE = "Popular builds from Talents Forever, updated daily"
+L.B_SUBTITLE_ASOF = "Popular builds from Talents Forever, updated daily · data of %s"
+L.B_YOURS = "Yours"
+L.B_CHOSEN = "Chosen"
+L.B_LINK = "link"
+L.B_STATS = "Saved %s · opened %s · %s similar builds"
+L.B_STATS_LINK = "Build from a link"
+L.B_ROTATION = "ROTATION FOR THIS BUILD"
+L.B_ON_PROC = "%s\non proc"
+L.B_COMPARE = "COMPARED WITH YOUR TALENTS"
+L.B_ALL_MATCH = { "Your %d point matches the build", "All %d points match the build", "All %d points match the build" }
+L.B_NO_POINTS = "No talent points invested yet"
+L.B_SOME_MATCH = "%d of %d points match the build"
+L.B_NEXT_AT = "Next point at level %d: %s"
+L.B_NEXT_NOW = "Free point now: %s"
+L.B_DONE = "The build is complete"
+L.B_SPEC = "Spec %d"
+L.B_SPEC2_LOCKED = "Spec 2 · from %d"
+L.B_CHOOSE = "Choose build"
+L.B_UNCHOOSE = "Cancel choice"
+L.B_FOOTER = "Builds: |cffF2C94CTalents Forever|r (baldwinbuilds), co-author · CC BY 4.0"
+L.B_NO_TF = "Builds come from the Talents Forever addon (TalentsForeverBook). Install it and the popular builds appear here."
+L.B_EMPTY_TAB = "No builds in this list yet."
+L.B_PASTE_HINT = "Paste a Talents Forever link or code, then press Enter"
+L.B_BAD_LINK = "That does not look like a Talents Forever link or code."
+L.B_AUTO = "No build chosen: the rotation follows your talents."
+L.B_CHOSEN_MSG = "Spec %d: build %s %s chosen."
+L.B_UNCHOSEN_MSG = "Spec %d: no build chosen, the rotation follows your talents."
+
+-- Planner window
+L.PLANNER_TITLE = "Planner"
+L.P_LEVEL = "level %d"
+L.P_TRAINER_WAITS = { "%d spell waits at the trainer", "%d spells wait at the trainer", "%d spells wait at the trainer" }
+L.P_TRAINER_NONE = "Nothing new at the trainer"
+L.P_TRAINER_NEXT = "next at level %d"
+L.P_TRAINER_UNKNOWN = "visit your class trainer once and the addon remembers where"
+L.P_NEEDS = "WHAT THE BUILD'S ROTATION NEEDS"
+L.P_NEEDS_NONE = "Everything is learned and on the bars."
+L.P_MORE = "and %d more"
+L.P_RANK = " · rank %d"
+L.P_ST_trainer = "At trainer"
+L.P_ST_talent = "Talent"
+L.P_ST_nobar = "Not on bars"
+L.P_ST_level = "Lvl %d"
+L.P_ST_quest = "Quest · %d"
+L.P_SUB_TALENT_NOW = { "%d free talent point", "%d free talent points", "%d free talent points" }
+L.P_SUB_TALENT_AT = "Talent point at level %d"
+L.P_SUB_TALENT_SPELL = "Comes from a talent of the build"
+L.P_SUB_NOBAR = "Learned, but not on the action bars"
+L.P_SUB_LEVEL = { "Opens in %d level", "Opens in %d levels", "Opens in %d levels" }
+L.P_SUB_QUEST = "Class quest, starts at the trainer"
+L.P_PREVIEW = "LEVEL PREVIEW"
+L.P_NEW_AT = "New at level %d"
+L.P_NOTHING_NEW = "Nothing new at this level"
+L.P_RANKS_MORE = { "%d new rank", "%d new ranks", "%d new ranks" }
+L.P_ROTATION_AT = "Rotation at level %d"
+L.P_QUESTS = "CLASS QUESTS"
+L.P_QUEST_DONE = "done"
+
+L.MINIMAP_TIP_SHIFT = "Shift+click: builds"
+L.MINIMAP_TIP_CTRL = "Ctrl+click: planner"

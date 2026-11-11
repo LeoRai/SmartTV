@@ -188,8 +188,10 @@ function Commands:Run(cmd, arg)
         ns.db.minimap.hide = not ns.db.minimap.hide
         Events:Fire("FC_SETTINGS_CHANGED", "minimap")
         ns.Print(ns.db.minimap.hide and L.MINIMAP_HIDDEN or L.MINIMAP_SHOWN)
-    elseif cmd == "builds" or cmd == "plan" then
-        ns.Print(L.NOT_YET, 2)
+    elseif cmd == "builds" then
+        ns.BuildsWindow:Toggle()
+    elseif cmd == "plan" or cmd == "planner" then
+        ns.PlannerWindow:Toggle()
     elseif cmd == "recap" then
         ns.Print(L.NOT_YET, 3)
     elseif cmd == "mode" then

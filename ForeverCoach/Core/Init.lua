@@ -24,6 +24,29 @@ function ns.Print(fmt, ...)
     end
 end
 
+-- A string of the locale or the fallback (L itself answers a missing key with the key).
+function ns.Tr(key, fallback)
+    local v = rawget(L, key)
+    if v == nil then return fallback end
+    return v
+end
+
+-- 4884 -> "4,884" (enUS) or "4 884" (ruRU).
+function ns.Number(n)
+    if type(n) ~= "number" then return "?" end
+    local s = tostring(math.floor(n + 0.5))
+    local sign, digits = s:match("^(-?)(%d+)$")
+    if not digits then return s end
+    local out = digits:reverse():gsub("(%d%d%d)", "%1" .. (L.THOUSANDS or ",")):reverse()
+    out = out:gsub("^" .. (L.THOUSANDS or ","):gsub("%p", "%%%0"), "")
+    return sign .. out
+end
+
+-- "%d spells" with the plural form for n: forms = { one, few, many } of the locale.
+function ns.Count(n, forms)
+    return string.format(ns.Plural(n, forms), n)
+end
+
 -- Settings kept per character (SavedVariablesPerCharacter: ForeverCoachCharDB).
 ns.Defaults = {
     schema = 3,

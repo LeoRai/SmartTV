@@ -1,9 +1,9 @@
 -- Planner (stage 2): everything the chosen build's rotation still needs, by status:
 --   trainer  a rank or spell waiting at the trainer (with its price)
---   talent   the next talent point of the build
+--   talent   the next talent point of the build, or a rotation spell its talents give
+--   quest    comes from a class quest (now: the level is there; later: not yet)
 --   nobar    learned, but not on the action bars
 --   level    opens at a later level
---   quest    comes from a class quest
 -- plus the trainer summary, class quests and a preview of the rotation at another level.
 local ADDON, ns = ...
 local API, Data, Events, L = ns.API, ns.Data, ns.Events, ns.L
@@ -11,7 +11,9 @@ local API, Data, Events, L = ns.API, ns.Data, ns.Events, ns.L
 local Planner = {}
 ns.Planner = Planner
 
-Planner.ORDER = { trainer = 1, talent = 2, nobar = 3, level = 4, quest = 5 }
+-- What to do now first (buy, spend a point, take a quest, put on the bars), then what comes later.
+Planner.ORDER = { trainer = 1, talent = 2, quest = 3, nobar = 4, level = 5, questLater = 6 }
+function Planner.Rank(item) return Planner.ORDER[item.later and "questLater" or item.status] end
 Planner.PREVIEW_STEPS = { 0, 2, 6, 8, 12, 18 } -- levels shown in the preview, from the current one
 
 local function srcOf(sp, r) return r[3] or sp.source end
@@ -49,6 +51,20 @@ function Planner.TrainerSummary(def, level, knownRank, talents)
     end
     table.sort(out.list, function(a, b) return a.level < b.level or (a.level == b.level and a.id < b.id) end)
     return out
+end
+
+-- The next level at which the trainer has something new (nil at the top).
+function Planner.NextTrainerLevel(def, level, knownRank, talents)
+    local best
+    for key, sp in pairs(def.spells) do
+        if not sp.talent or (talents[sp.talent] or 0) > 0 then
+            for i = (knownRank[key] or 0) + 1, #sp.ranks do
+                local r = sp.ranks[i]
+                if r[2] > level and srcOf(sp, r) == "trainer" and (not best or r[2] < best) then best = r[2] end
+            end
+        end
+    end
+    return best
 end
 
 -- Where to go: the trainer visited last, else the known one for the class and faction.
@@ -101,7 +117,8 @@ local function profileSpells(def, profile)
 end
 
 -- What the rotation still needs. s: the state (known, knownRank, talents), level, onBars(key).
-function Planner.Needs(def, profile, s, level, onBars, nextTalent)
+-- buildTalents: talent keys the build takes (a spell of another talent is not the player's plan).
+function Planner.Needs(def, profile, s, level, onBars, nextTalent, buildTalents)
     local out = {}
     for _, key in ipairs(profileSpells(def, profile)) do
         local sp = def.spells[key]
@@ -123,9 +140,12 @@ function Planner.Needs(def, profile, s, level, onBars, nextTalent)
             local first = sp.ranks[1]
             local src = srcOf(sp, first)
             if sp.talent and (s.talents[sp.talent] or 0) == 0 then
-                item = { key = key, status = "talent", id = first[1], level = first[2] }
+                if buildTalents and buildTalents[sp.talent] then
+                    item = { key = key, status = "talent", id = first[1], level = first[2] }
+                end
             elseif first[2] > level then
-                item = { key = key, status = src == "quest" and "quest" or "level", id = first[1], level = first[2] }
+                item = { key = key, status = src == "quest" and "quest" or "level", id = first[1], level = first[2],
+                         later = src == "quest" or nil }
             elseif src == "quest" then
                 item = { key = key, status = "quest", id = first[1], level = first[2] }
             elseif src == "trainer" then
@@ -142,7 +162,8 @@ function Planner.Needs(def, profile, s, level, onBars, nextTalent)
     for _, q in ipairs(Planner.Quests(def, s.known, level)) do
         if not q.done then
             local sp = def.spells[q.gives]
-            out[#out + 1] = { key = q.gives, status = "quest", id = sp and sp.ranks[1][1], level = q.level, quest = q.key }
+            out[#out + 1] = { key = q.gives, status = "quest", id = sp and sp.ranks[1][1], level = q.level, quest = q.key,
+                              later = not q.available or nil }
         end
     end
     local seen, unique = {}, {}
@@ -150,9 +171,10 @@ function Planner.Needs(def, profile, s, level, onBars, nextTalent)
         if not seen[it.key] then seen[it.key] = true; unique[#unique + 1] = it end
     end
     table.sort(unique, function(a, b)
-        local oa, ob = Planner.ORDER[a.status], Planner.ORDER[b.status]
+        local oa, ob = Planner.Rank(a), Planner.Rank(b)
         if oa ~= ob then return oa < ob end
-        return (a.level or 0) < (b.level or 0)
+        if (a.level or 0) ~= (b.level or 0) then return (a.level or 0) < (b.level or 0) end
+        return a.key < b.key
     end)
     return unique
 end
