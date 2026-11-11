@@ -18,6 +18,8 @@ local State = {
     knownDirty = true,
     itemsDirty = true,
     auraConfirmed = false, -- the client has shown one of our debuffs since the combat started
+    aurasBlocked = false,  -- the client refuses aura reads in this combat (Forever): stop asking
+    traits = {},           -- talent spellID -> rank from the trait system
     signature = "",
     talentSignature = "",
 }
@@ -72,11 +74,14 @@ function State:ScanKnown()
         if sp.channel then self.castTime[key] = Data.Cast(sp, self.knownRank[key]) end
     end
 
+    local traits = API.TraitRanks(self.traits)
     local byName
     for key, t in pairs(def.talents or {}) do
-        local rank = 0
-        for i = #t.ids, 1, -1 do
-            if API.IsKnown(t.ids[i]) then rank = i; break end
+        local rank = traits and traits[t.ids[1]] or 0
+        if rank == 0 then
+            for i = #t.ids, 1, -1 do
+                if API.IsKnown(t.ids[i]) then rank = i; break end
+            end
         end
         if rank == 0 then
             byName = byName or API.TalentRanksByName()
@@ -250,7 +255,11 @@ function State:Refresh(now)
     -- Own debuffs on the target: client auras, own timers when hidden ---------
     wipe(s.debuffs)
     if t.exists then
-        local readable = API.ForEachAura("target", "HARMFUL|PLAYER", collectDebuff)
+        local readable, why = false
+        if not (self.aurasBlocked and p.in_combat) then
+            readable, why = API.ForEachAura("target", "HARMFUL|PLAYER", collectDebuff)
+            if why == "blocked" and p.in_combat then self.aurasBlocked = true end
+        end
         if not readable then s.hidden["debuffs"] = true end
         local own, applied = Timers:DebuffsOn(t.guid)
         -- The client may also withhold auras without marking them secret (an empty list).
@@ -274,7 +283,11 @@ function State:Refresh(now)
 
     -- Buffs on the player --------------------------------------------------
     wipe(s.buffs)
-    local readable = API.ForEachAura("player", "HELPFUL", collectBuff)
+    local readable, why = false
+    if not (self.aurasBlocked and p.in_combat) then
+        readable, why = API.ForEachAura("player", "HELPFUL", collectBuff)
+        if why == "blocked" and p.in_combat then self.aurasBlocked = true end
+    end
     if not readable then
         s.hidden["buffs"] = true
         for key, expires in pairs(Timers.buffs) do
@@ -348,7 +361,7 @@ for _, event in ipairs({
     Events:On(event, State, knownDirty)
 end
 Events:On("UNIT_PET", State, knownDirty, "player")
-local function newCombat(self) self.auraConfirmed = false end
+local function newCombat(self) self.auraConfirmed, self.aurasBlocked = false, false end
 Events:On("PLAYER_REGEN_DISABLED", State, newCombat)
 Events:On("PLAYER_REGEN_ENABLED", State, newCombat)
 Events:On("PLAYER_ENTERING_WORLD", State, newCombat)

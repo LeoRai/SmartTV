@@ -1,4 +1,7 @@
 -- ForeverCoach Probe: stage 0 of the plan.
+-- 0.2: after the first report (health, mana and auras hidden), also checks whether hidden values
+-- can still drive what is shown (curves, secret-aware widgets), other ways to read auras in
+-- combat, the UNIT_AURA payload, and where talent nodes sit (to split the three trees).
 -- Answers "what can an addon read in WoW Forever, in and out of combat?" before the engine
 -- relies on it. Every check runs inside pcall, so the probe itself never breaks the game.
 --
@@ -90,7 +93,41 @@ local APIS = {
     "GetTrainerServiceCost", "GetTrainerServiceLevelReq", "C_TooltipInfo.GetTrainerService", "UnitCastingInfo",
     "UnitChannelInfo", "UnitThreatSituation", "GetPetActionInfo", "UnitCreatureFamily", "HasWandEquipped",
     "C_QuestLog.GetTitleForQuestID", "C_Map.GetBestMapForUnit", "C_Map.GetPlayerMapPosition", "Settings.RegisterCanvasLayoutCategory",
+    "UnitHealthPercent", "UnitPowerPercent", "C_CurveUtil", "C_CurveUtil.CreateCurve", "C_DurationUtil", "issecrettable",
 }
+
+-- Hidden test widgets: do they accept secret values?
+local testFrame = CreateFrame("Frame")
+testFrame:Hide()
+local testTexture = testFrame:CreateTexture()
+local testBar = CreateFrame("StatusBar", nil, testFrame)
+testBar:SetMinMaxValues(0, 1)
+local testCooldown = CreateFrame("Cooldown", nil, testFrame, "CooldownFrameTemplate")
+local healthCurve -- 1 below 35% health, 0 above (built with C_CurveUtil if it exists)
+
+local function buildCurve()
+    if healthCurve ~= nil or not (C_CurveUtil and C_CurveUtil.CreateCurve) then return healthCurve end
+    healthCurve = false
+    local ok = pcall(function()
+        local c = C_CurveUtil.CreateCurve()
+        c:AddPoint(0, 1)
+        c:AddPoint(0.35, 1)
+        c:AddPoint(0.36, 0)
+        c:AddPoint(1, 0)
+        healthCurve = c
+    end)
+    if not ok then healthCurve = false end
+    return healthCurve
+end
+
+-- Runs fn and reports "ok" / "error" (with message) as the value, so classify() keeps the text.
+local function accepts(fn)
+    return function()
+        local ok, err = pcall(fn)
+        if ok then return "accepted" end
+        error(err, 0)
+    end
+end
 
 local function firstAura(unit, filter, field)
     return function()
@@ -220,6 +257,54 @@ local CHECKS = {
     end },
     { "actionbar.slot1", function() return (GetActionInfo(1)) end },
     { "wand.equipped", function() return HasWandEquipped() end },
+    -- 0.2: other ways to the same data
+    { "player.healthPercent", function()
+        if not UnitHealthPercent then return nil end
+        return UnitHealthPercent("player")
+    end },
+    { "target.healthPercent", needTarget(function()
+        if not UnitHealthPercent then return nil end
+        return UnitHealthPercent("target")
+    end) },
+    { "player.manaMax", function() return UnitPowerMax("player", 0) end },
+    { "aura.player.bySpellID", function()
+        local id = DB and DB.knownBuff
+        if not id or not (C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID) then return nil, "skip" end
+        local aura = C_UnitAuras.GetPlayerAuraBySpellID(id)
+        if aura == nil then return nil end
+        if issecretvalue and issecretvalue(aura) then return aura end
+        return aura.expirationTime
+    end },
+    { "aura.forEach", function()
+        if not (AuraUtil and AuraUtil.ForEachAura) then return nil end
+        local n = 0
+        AuraUtil.ForEachAura("player", "HELPFUL", nil, function() n = n + 1 end, true)
+        return n
+    end },
+    -- 0.2: can hidden values drive the display?
+    { "display.statusBarSecret", accepts(function() testBar:SetValue(UnitHealth("player")) end) },
+    { "display.alphaSecret", accepts(function() testTexture:SetAlpha(UnitHealth("player")) end) },
+    { "display.curveValue", function()
+        local curve = buildCurve()
+        if not curve or not UnitHealthPercent then return nil end
+        return UnitHealthPercent("player", true, curve)
+    end },
+    { "display.alphaFromCurve", accepts(function()
+        local curve = buildCurve()
+        if not curve or not UnitHealthPercent then error("no curve or UnitHealthPercent", 0) end
+        testTexture:SetAlpha(UnitHealthPercent("player", true, curve))
+    end) },
+    { "display.cooldownDuration", accepts(function()
+        if not (C_Spell.GetSpellCooldownDuration and testCooldown.SetCooldownFromDurationObject) then
+            error("no duration API", 0)
+        end
+        testCooldown:SetCooldownFromDurationObject(C_Spell.GetSpellCooldownDuration(basicSpell()))
+    end) },
+    { "talent.isPlayerSpell", function()
+        local id = DB and DB.knownTalent
+        if not id then return nil, "skip" end
+        return IsPlayerSpell(id)
+    end },
 }
 
 -- Events whose arguments we look at: does it fire, are its values readable?
@@ -230,9 +315,18 @@ local EVENTS = {
     UNIT_HEALTH = function(unit) return unit == "target", unit end,
     UNIT_AURA = function(unit, info)
         if unit ~= "target" and unit ~= "player" then return false end
-        local added = type(info) == "table" and not (issecretvalue and issecretvalue(info)) and info.addedAuras
-        if added and added[1] then return true, added[1].spellId end
-        return true, unit
+        if info == nil then return true, unit .. ":no-info" end
+        if issecretvalue and issecretvalue(info) then return true, info end
+        if info.isFullUpdate then return true, unit .. ":full" end
+        local added = info.addedAuras
+        if added and added[1] then
+            local id = added[1].spellId
+            if issecretvalue and issecretvalue(id) then return true, id end
+            return true, unit .. ":added:" .. tostring(id)
+        end
+        if info.updatedAuraInstanceIDs then return true, unit .. ":updated" end
+        if info.removedAuraInstanceIDs then return true, unit .. ":removed" end
+        return true, unit .. ":empty"
     end,
     SPELL_ACTIVATION_OVERLAY_GLOW_SHOW = function(spellID) return true, spellID end,
     PLAYER_TARGET_CHANGED = function() return true, "target" end,
@@ -273,6 +367,7 @@ local function snapshot(manual)
             c.checks[name] = rec
             rec[status] = (rec[status] or 0) + 1
             if status == "ok" and sample then rec.sample = sample end
+            if name == "aura.player.spellId" and status == "ok" then DB.knownBuff = tonumber(sample) end
             if status == "error" then rec.err = sample end
         end
     end
@@ -351,7 +446,10 @@ local function dumpTalents()
                     local e = C_Traits.GetEntryInfo(configID, entryID)
                     local d = e and e.definitionID and C_Traits.GetDefinitionInfo(e.definitionID)
                     out.traits[#out.traits + 1] = { node = nodeID, entry = entryID, spellID = d and d.spellID,
-                                                    rank = node.currentRank, max = node.maxRanks }
+                                                    rank = node.currentRank, max = node.maxRanks,
+                                                    x = node.posX, y = node.posY, subTree = node.subTreeID,
+                                                    tree = treeID }
+                    if (node.currentRank or 0) > 0 and d and d.spellID then DB.knownTalent = d.spellID end
                 end
             end
         end
@@ -400,6 +498,40 @@ local function dumpTrainer()
     say(T("учитель записан: %d услуг", "trainer saved: %d services"), #out.services)
 end
 
+local NAMESPACES = { "C_Secrets", "C_CurveUtil", "C_DurationUtil", "C_UnitAuras", "C_Spell", "C_ActionBar" }
+local METHOD_HINT = { "Secret", "Boolean", "Curve", "Duration", "FromBool" }
+
+local function dumpApi()
+    local out = { namespaces = {}, methods = {}, globals = {} }
+    for _, ns in ipairs(NAMESPACES) do
+        local t = _G[ns]
+        if type(t) == "table" then
+            local names = {}
+            for k, v in pairs(t) do if type(v) == "function" then names[#names + 1] = k end end
+            table.sort(names)
+            out.namespaces[ns] = names
+        end
+    end
+    local widgets = { Texture = testTexture, StatusBar = testBar, Cooldown = testCooldown, Frame = testFrame }
+    for kind, obj in pairs(widgets) do
+        local names, mt = {}, getmetatable(obj)
+        local index = mt and mt.__index
+        if type(index) == "table" then
+            for k in pairs(index) do
+                for _, hint in ipairs(METHOD_HINT) do
+                    if tostring(k):find(hint, 1, true) then names[#names + 1] = k; break end
+                end
+            end
+        end
+        table.sort(names)
+        out.methods[kind] = names
+    end
+    for _, g in ipairs({ "UnitHealthPercent", "UnitPowerPercent", "UnitHealthMissing", "issecrettable", "scrubsecretvalues" }) do
+        out.globals[g] = _G[g] ~= nil
+    end
+    return out
+end
+
 local function dump()
     if InCombatLockdown() then
         say(T("выгрузка только вне боя", "dump works out of combat only"))
@@ -407,7 +539,7 @@ local function dump()
     end
     local level = UnitLevel("player")
     local results = {}
-    for name, fn in pairs({ spellbook = dumpSpellbook, talents = dumpTalents, pet = dumpPet }) do
+    for name, fn in pairs({ spellbook = dumpSpellbook, talents = dumpTalents, pet = dumpPet, api = dumpApi }) do
         local ok, value = pcall(fn)
         DB.dumps[name] = ok and value or { error = tostring(value) }
         results[#results + 1] = name .. (ok and "" or " (error)")
@@ -443,7 +575,7 @@ local function buildReport()
     local lines = {}
     local function add(fmt, ...) lines[#lines + 1] = select("#", ...) > 0 and string.format(fmt, ...) or fmt end
     local c = DB.client
-    add("ForeverCoach Probe report v%d", VERSION)
+    add("ForeverCoach Probe report v%d (probe 0.2)", VERSION)
     add("client %s build %s (%s) toc %s project %s locale %s", tostring(c.version), tostring(c.build), tostring(c.date),
         tostring(c.toc), tostring(c.project), tostring(c.locale))
     add("character: %s level %s", tostring(c.class), tostring(UnitLevel("player")))
@@ -472,6 +604,20 @@ local function buildReport()
     local blocked = {}
     for _, b in ipairs(DB.blocked or {}) do blocked[#blocked + 1] = b.func .. " (" .. b.where .. ")" end
     add("blocked by the client: %s", #blocked > 0 and table.concat(blocked, ", ") or "-")
+    local api = DB.dumps.api
+    if api and api.namespaces then
+        for _, ns in ipairs({ "C_Secrets", "C_CurveUtil", "C_DurationUtil" }) do
+            local names = api.namespaces[ns]
+            add("%s: %s", ns, names and table.concat(names, ", ") or "-")
+        end
+        for _, kind in ipairs({ "Texture", "StatusBar", "Cooldown", "Frame" }) do
+            add("methods %s: %s", kind, table.concat(api.methods[kind] or {}, ", "))
+        end
+        local g = {}
+        for name, present in pairs(api.globals or {}) do g[#g + 1] = name .. "=" .. tostring(present) end
+        table.sort(g)
+        add("globals: %s", table.concat(g, ", "))
+    end
     local book = DB.dumps.spellbook
     add("dump: spellbook %s, talents %s, pet %s, trainers %d, quests %d",
         book and (#book .. " spells") or "-", DB.dumps.talents and "yes" or "-", DB.dumps.pet and "yes" or "-",

@@ -103,7 +103,6 @@ L.WHY_AMPLIFY = "strong enemy: amplify your curse before casting it"
 L.WHY_AOE_RAIN = "three or more enemies: area damage"
 L.WHY_AOE_HELLFIRE = "three or more enemies around you: Hellfire hits them all (it burns you too)"
 L.WHY_PET_ATTACK = "your demon is idle"
-L.WHY_DARK_PACT = "low mana: take it from your demon instead of your health"
 L.WHY_PULL = "out of combat: open with a long cast"
 
 -- Settings window (layout of the mockup: Look, Mode | Thresholds, Sound, Keys)

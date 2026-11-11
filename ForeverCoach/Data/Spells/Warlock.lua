@@ -1,10 +1,12 @@
 -- Warlock: spells, ranks, buffs, talents, items.
 -- IDs only: names and icons come from the client, so the Russian client shows Russian names.
 --
--- STATUS: IDs and levels are the Classic Era values (Warcraft Tavern, Classic database).
--- Forever reworked many talents and may have moved some ranks: the stage 0 probe
--- (ForeverCoach_Probe, /fcprobe dump) exports the real spellbook, talents and trainer
--- prices, and this file gets corrected from that dump. Prices are filled the same way.
+-- STATUS: checked against the stage 0 dump (Forever 1.60.1 build 70888, level 12, Undercity
+-- trainer): every trainer rank from level 14 to 60 has the ID, level and price below.
+-- Forever changes found there: Conflagrate is a trainer spell from 32 (new rank 1), Incinerate
+-- is new at 50, Curse of the Elements has new IDs, Dark Pact is gone. Ranks below level 12
+-- were already learned and match the spellbook. Demon abilities other than the Voidwalker's
+-- are still unverified.
 local ADDON, ns = ...
 
 ns.Data:DefineClass("WARLOCK", function()
@@ -13,7 +15,7 @@ ns.Data:DefineClass("WARLOCK", function()
         version = "0.1.0",
         patch = "1.60.1",
         date = "2026-11-11",
-        verified = false, -- true once checked against the stage 0 dump
+        verified = true, -- checked against the stage 0 dump, see STATUS above
         trees = { "Affliction", "Demonology", "Destruction" },
         filler = "shadow_bolt", -- used for range and "out of mana" checks
         gcd = 1.5,
@@ -72,9 +74,13 @@ ns.Data:DefineClass("WARLOCK", function()
                 role = "execute", source = "trainer", talent = "shadowburn", cooldown = 15,
                 ranks = { {17877, 20, "talent"}, {18867, 24}, {18868, 32}, {18869, 40}, {18870, 48}, {18871, 56} },
             },
-            conflagrate = {
-                role = "filler", source = "trainer", talent = "conflagrate", cooldown = 10, requires = "immolate",
-                ranks = { {17962, 40, "talent"}, {18930, 48}, {18931, 54}, {18932, 60} },
+            conflagrate = { -- Forever: a trainer spell from 32, no longer a talent
+                role = "filler", source = "trainer", cooldown = 10, requires = "immolate",
+                ranks = { {1293818, 32}, {17962, 40}, {18930, 48}, {18931, 54}, {18932, 60} },
+            },
+            incinerate = { -- new in Forever
+                role = "filler", source = "trainer", cast = 2.5,
+                ranks = { {1293812, 50}, {1293813, 60} },
             },
             rain_of_fire = {
                 role = "aoe", source = "trainer", channel = true, cast = 8,
@@ -112,10 +118,6 @@ ns.Data:DefineClass("WARLOCK", function()
                 role = "utility", source = "trainer",
                 ranks = { {1454, 6}, {1455, 16}, {1456, 26}, {11687, 36}, {11688, 46}, {11689, 56} },
             },
-            dark_pact = {
-                role = "utility", source = "trainer", talent = "dark_pact",
-                ranks = { {18220, 40, "talent"}, {18937, 50}, {18938, 60} },
-            },
             amplify_curse = {
                 role = "cooldown", source = "talent", talent = "amplify_curse", cooldown = 180, gcd = false,
                 ranks = { {18288, 20} },
@@ -142,6 +144,59 @@ ns.Data:DefineClass("WARLOCK", function()
                 role = "utility", source = "trainer", cast = 3,
                 ranks = { {6201, 10}, {6202, 22}, {5699, 34}, {11729, 46}, {11730, 58} },
             },
+
+            -- Not in the rotation, but sold by the trainer: needed for an exact trainer summary.
+            curse_of_recklessness = {
+                role = "curse", source = "trainer", duration = 120,
+                ranks = { {704, 14}, {7658, 28}, {7659, 42}, {11717, 56} },
+            },
+            curse_of_elements = { -- Forever IDs
+                role = "curse", source = "trainer", duration = 300,
+                ranks = { {440892, 20}, {1311676, 30}, {1311677, 40}, {1311680, 50} },
+            },
+            curse_of_tongues = { role = "curse", source = "trainer", duration = 30, ranks = { {1714, 26}, {11719, 50} } },
+            drain_mana = { role = "utility", source = "trainer", harmful = true, channel = true, cast = 5,
+                           ranks = { {5138, 24}, {6226, 34}, {11703, 44}, {11704, 54} } },
+            banish = { role = "cc", harmful = false, source = "trainer", cast = 1.5, ranks = { {710, 28}, {18647, 48} } },
+            enslave_demon = { role = "utility", source = "trainer", cast = 3, ranks = { {1098, 30}, {11725, 44}, {11726, 58} } },
+            shadow_ward = { role = "defense", source = "trainer", cooldown = 30, ranks = { {6229, 32}, {11739, 42}, {11740, 52} } },
+            unending_breath = { role = "utility", source = "trainer", ranks = { {5697, 16} } },
+            ritual_of_summoning = { role = "utility", source = "trainer", ranks = { {698, 20} } },
+            eye_of_kilrogg = { role = "utility", source = "trainer", ranks = { {126, 22} } },
+            sense_demons = { role = "utility", source = "trainer", ranks = { {5500, 24} } },
+            detect_invisibility = { role = "utility", source = "trainer", ranks = { {132, 26}, {2970, 38}, {11743, 50} } },
+            create_soulstone = { role = "utility", source = "trainer", cast = 3,
+                                 ranks = { {693, 18}, {20752, 30}, {20755, 40}, {20756, 50}, {20757, 60} } },
+            create_firestone = { role = "utility", source = "trainer", cast = 3,
+                                 ranks = { {6366, 28}, {17951, 36}, {17952, 46}, {17953, 56} } },
+            create_spellstone = { role = "utility", source = "trainer", cast = 5, ranks = { {2362, 36}, {17727, 48}, {17728, 60} } },
+        },
+
+        -- Trainer prices in copper, from the stage 0 dump (ranks from level 14 up).
+        costs = {
+            [6222] = 1000, [689] = 1000, [704] = 1000, [1455] = 1600, [5697] = 1600, [1014] = 1700,
+            [5676] = 1700, [693] = 1700, [706] = 2500, [1094] = 2500, [3698] = 2500, [5740] = 2500,
+            [440892] = 2500, [698] = 2500, [1088] = 2500, [126] = 3800, [699] = 3800, [6205] = 3800,
+            [6202] = 3800, [18867] = 4800, [6223] = 4800, [8288] = 4800, [5138] = 4800, [5500] = 4800,
+            [17919] = 5000, [1456] = 5000, [132] = 5000, [1714] = 5000, [6217] = 6000, [710] = 6000,
+            [3699] = 6000, [7658] = 6000, [6366] = 6000, [1106] = 6000, [1949] = 7000, [1086] = 7000,
+            [2941] = 7000, [1098] = 7000, [709] = 7000, [1311676] = 7000, [20752] = 7000, [6229] = 8000,
+            [18868] = 8000, [1293818] = 8000, [7646] = 8000, [6213] = 8000, [17920] = 9000, [6219] = 9000,
+            [7648] = 9000, [6226] = 9000, [5699] = 9000, [11687] = 10000, [3700] = 10000, [17951] = 10000,
+            [2362] = 10000, [7641] = 10000, [11711] = 11000, [18879] = 11000, [2970] = 11000, [8289] = 11000,
+            [7651] = 11000, [5484] = 14000, [11733] = 14000, [11665] = 14000, [18869] = 14000, [17962] = 14000,
+            [1311677] = 14000, [20755] = 14000, [11683] = 15000, [17921] = 15000, [11739] = 15000, [6789] = 15000,
+            [7659] = 15000, [11707] = 15000, [11693] = 16000, [11725] = 16000, [11671] = 16000, [11703] = 16000,
+            [11659] = 16000, [11688] = 20000, [11677] = 20000, [11699] = 20000, [11729] = 20000, [17952] = 20000,
+            [11712] = 21000, [18880] = 21000, [18647] = 21000, [6353] = 21000, [18870] = 21000, [18930] = 21000,
+            [17727] = 21000, [11734] = 22000, [17922] = 22000, [11667] = 22000, [1293812] = 22000, [17925] = 22000,
+            [11743] = 22000, [11719] = 22000, [1311680] = 22000, [20756] = 22000, [11740] = 23000, [11694] = 23000,
+            [11675] = 23000, [11708] = 23000, [11660] = 23000, [11684] = 24000, [17928] = 24000, [18931] = 24000,
+            [11672] = 24000, [11700] = 24000, [11704] = 24000, [11689] = 25000, [17924] = 25000, [18871] = 25000,
+            [11717] = 25000, [17953] = 25000, [6215] = 25000, [11713] = 26000, [18881] = 26000, [17923] = 26000,
+            [17926] = 26000, [11678] = 26000, [11726] = 26000, [11730] = 26000, [603] = 27000, [11735] = 27000,
+            [11668] = 27000, [1293813] = 27000, [11695] = 27000, [18932] = 27000, [20757] = 27000, [17728] = 27000,
+            [11661] = 27000,
         },
 
         -- Buffs on the player. glow: the client highlights this spell while the buff is up
@@ -156,12 +211,10 @@ ns.Data:DefineClass("WARLOCK", function()
             nightfall = { ids = { 18094, 18095 }, tree = 1 },
             siphon_life = { ids = { 18265 }, tree = 1 },
             amplify_curse = { ids = { 18288 }, tree = 1 },
-            dark_pact = { ids = { 18220 }, tree = 1 },
             fel_domination = { ids = { 18708 }, tree = 2 },
             demonic_sacrifice = { ids = { 18788 }, tree = 2 },
             soul_link = { ids = { 19028 }, tree = 2 },
             shadowburn = { ids = { 17877 }, tree = 3 },
-            conflagrate = { ids = { 17962 }, tree = 3 },
         },
 
         -- Items: ids from best to worst; the best one in the bags is used.

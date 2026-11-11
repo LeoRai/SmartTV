@@ -43,6 +43,18 @@ describe("Probe", function()
         assert.is_truthy(checks["player.health"].ok)
     end)
 
+    it("checks whether hidden values can still drive the display (0.2)", function()
+        W.player.combat = true
+        W.secret = { ["player.hp"] = true }
+        SlashCmdList.FCPROBE("snap")
+        local checks = ForeverCoachProbeDB.contexts["world/combat"].checks
+        assert.equal("accepted", checks["display.statusBarSecret"].sample)
+        assert.is_truthy(checks["player.manaMax"].ok)
+        W.player.combat = false
+        SlashCmdList.FCPROBE("dump")
+        assert.is_table(ForeverCoachProbeDB.dumps.api.namespaces.C_Spell)
+    end)
+
     it("never subscribes to the combat log (Blizzard-only in Forever)", function()
         assert.is_nil(W.registered.COMBAT_LOG_EVENT_UNFILTERED)
         assert.is_true(W.registered.UNIT_SPELLCAST_SUCCEEDED)

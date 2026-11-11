@@ -57,6 +57,10 @@ function M.newWorld()
         bindings = {},       -- binding command -> key
         subzone = "Brill",
         registered = {},     -- events registered on any frame
+        auraError = false,   -- Forever in combat: aura reads raise "Auras cannot be accessed"
+        auraCalls = 0,
+        noGcdSpell = false,  -- Forever: the global cooldown spell 61304 answers nil
+        traits = nil,        -- talent spellID -> rank (trait system); nil = no trait API
     }
 end
 
@@ -139,6 +143,7 @@ function M.install(W)
             return { name = "spell" .. id, spellID = id, castTime = W.castTimes[id] or 0 }
         end,
         GetSpellCooldown = function(id)
+            if W.noGcdSpell and id == 61304 then return nil end
             if W.secret.cooldowns then return { startTime = secret(), duration = secret(), isEnabled = true } end
             local cd = W.cooldowns[id]
             return { startTime = cd and cd[1] or 0, duration = cd and cd[2] or 0, isEnabled = true }
@@ -151,6 +156,8 @@ function M.install(W)
     }
     G.C_UnitAuras = {
         GetAuraDataByIndex = function(unit, i, filter)
+            W.auraCalls = W.auraCalls + 1
+            if W.auraError then error("GetAuraDataByIndex(): Auras cannot be accessed while in combat") end
             local list = W.auras[unit]
             if not list then return nil end
             local mineOnly = filter and filter:find("PLAYER")
@@ -181,6 +188,19 @@ function M.install(W)
             for _, unit in ipairs(W.plates) do out[#out + 1] = { namePlateUnitToken = unit } end
             return out
         end,
+    }
+    -- Trait system: one tree, one node per talent spell.
+    G.C_ClassTalents = { GetActiveConfigID = function() return W.traits and 1 or nil end }
+    G.C_Traits = {
+        GetConfigInfo = function() return { treeIDs = { 1 } } end,
+        GetTreeNodes = function()
+            local nodes = {}
+            for spellID in pairs(W.traits or {}) do nodes[#nodes + 1] = spellID end
+            return nodes
+        end,
+        GetNodeInfo = function(_, nodeID) return { currentRank = W.traits[nodeID], entryIDs = { nodeID } } end,
+        GetEntryInfo = function(_, entryID) return { definitionID = entryID } end,
+        GetDefinitionInfo = function(definitionID) return { spellID = definitionID } end,
     }
     G.GetNumTalentTabs = function() return W.talentTabs and #W.talentTabs or 0 end
     G.GetNumTalents = function(tab) return W.talentTabs and #W.talentTabs[tab] or 0 end

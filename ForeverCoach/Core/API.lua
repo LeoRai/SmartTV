@@ -221,11 +221,15 @@ end
 ---------------------------------------------------------------------------
 
 -- Calls fn(spellId, expirationTime, applications) for each aura of unit matching filter.
--- Returns false when the aura list is hidden (secret) and the caller must use its own timers.
+-- Returns false when the aura list is hidden and the caller must use its own timers:
+-- secret fields, or (stage 0 finding in Forever) an error "Auras cannot be accessed" in combat.
+-- The second value is "blocked" in that last case.
+local getAura = C_UnitAuras and C_UnitAuras.GetAuraDataByIndex
 function API.ForEachAura(unit, filter, fn)
-    if C_UnitAuras and C_UnitAuras.GetAuraDataByIndex then
+    if getAura then
         for i = 1, 40 do
-            local aura = C_UnitAuras.GetAuraDataByIndex(unit, i, filter)
+            local ok, aura = pcall(getAura, unit, i, filter)
+            if not ok then return false, "blocked" end
             if aura == nil then break end
             local id = numberOrNil(field(aura, "spellId"))
             if id == nil then return false end
@@ -294,6 +298,33 @@ function API.TreePoints()
         points[tab] = sum
     end
     return points
+end
+
+-- Forever keeps the classic talent trees in the trait system (stage 0 finding: the classic
+-- talent API is gone). Fills out[spellID of the talent] = purchased rank; nil when unavailable.
+function API.TraitRanks(out)
+    ns.wipe(out)
+    if not (C_ClassTalents and C_ClassTalents.GetActiveConfigID and C_Traits and C_Traits.GetConfigInfo) then
+        return nil
+    end
+    local ok = pcall(function()
+        local configID = C_ClassTalents.GetActiveConfigID()
+        local config = configID and C_Traits.GetConfigInfo(configID)
+        for _, treeID in ipairs(config and config.treeIDs or {}) do
+            for _, nodeID in ipairs(C_Traits.GetTreeNodes(treeID) or {}) do
+                local node = C_Traits.GetNodeInfo(configID, nodeID)
+                local rank = node and numberOrNil(node.currentRank or node.ranksPurchased) or 0
+                for _, entryID in ipairs(node and node.entryIDs or {}) do
+                    local entry = C_Traits.GetEntryInfo(configID, entryID)
+                    local def = entry and entry.definitionID and C_Traits.GetDefinitionInfo(entry.definitionID)
+                    local spellID = def and numberOrNil(def.spellID)
+                    if spellID then out[spellID] = rank end
+                end
+            end
+        end
+    end)
+    if not ok or next(out) == nil then return nil end
+    return out
 end
 
 -- name -> rank for all talents (localized names, matched against client spell names).
