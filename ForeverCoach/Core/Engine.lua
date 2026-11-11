@@ -203,7 +203,7 @@ local function compileLine(def, row, i, entry, errors)
             errors[#errors + 1] = string.format("%s #%d (%s): bad gate (unit player/target/pet, below = number or opt key)", row, i, action)
             return nil
         end
-        line.gate = { unit = g.unit, below = g.below, key = g.unit .. ":" .. tostring(g.below) }
+        line.gate = { unit = g.unit, below = g.below, warn = g.warn, key = g.unit .. ":" .. tostring(g.below) }
     end
     line.fn, line.paths = fn, paths
     line.pathFns = {}

@@ -123,6 +123,21 @@ describe("Health gates in Forever", function()
     it("binds the gated icons to the client's health curve", function()
         local r, s = addon.compute(ns, W)
         ns.HUD:Render(r, s, W.time)
-        assert.equal(4, W.gateBinds) -- Drain Soul over the main icon, three over the defense slot
+        -- Drain Soul over the main icon (icon + its frame), three over the defense slot.
+        assert.equal(5, W.gateBinds)
+    end)
+
+    it("fades Drain Soul in from 35% and shows it fully at 20%", function()
+        local r, s = addon.compute(ns, W)
+        assert.equal(15, r.gatedMain.gate.warn)
+        ns.HUD:Render(r, s, W.time)
+        local fade
+        for _, points in ipairs(W.curves) do if #points == 5 then fade = points end end
+        assert.is_table(fade)
+        assert.same({ 0, 1 }, fade[1])
+        assert.same({ 0.2, 1 }, fade[2])
+        assert.equal(ns.API.WARN_ALPHA, fade[3][2])
+        assert.is_true(math.abs(fade[4][1] - 0.35) < 1e-9)
+        assert.equal(0, fade[4][2])
     end)
 end)

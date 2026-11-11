@@ -129,31 +129,43 @@ end
 
 -- Health gates: the client shows a widget only while a unit's health is at or below a threshold,
 -- without the addon ever reading the health (stage 0.2: UnitHealthPercent with a curve gives a
--- secret 0/1 that SetAlpha accepts, in combat too). threshold is 0..1.
+-- secret value that SetAlpha accepts, in combat too). threshold and warn are 0..1.
+-- warn > 0 adds a warning band above the threshold: the widget fades in from 0 at threshold+warn
+-- to WARN_ALPHA just above the threshold, then is fully shown at the threshold.
+local WARN_ALPHA = 0.4
+API.WARN_ALPHA = WARN_ALPHA
 local curves = {}
-local function stepCurve(threshold)
-    local curve = curves[threshold]
+local function gateCurve(threshold, warn)
+    warn = warn or 0
+    local key = threshold .. ":" .. warn
+    local curve = curves[key]
     if curve == nil then
         curve = false
         if C_CurveUtil and C_CurveUtil.CreateCurve then
             local ok, made = pcall(function()
                 local c = C_CurveUtil.CreateCurve()
+                local edge = math.min(1, threshold + 0.001)
                 c:AddPoint(0, 1)
                 c:AddPoint(threshold, 1)
-                c:AddPoint(math.min(1, threshold + 0.001), 0)
+                if warn > 0 and threshold + warn < 1 then
+                    c:AddPoint(edge, WARN_ALPHA)
+                    c:AddPoint(threshold + warn, 0)
+                else
+                    c:AddPoint(edge, 0)
+                end
                 c:AddPoint(1, 0)
                 return c
             end)
             if ok then curve = made end
         end
-        curves[threshold] = curve
+        curves[key] = curve
     end
     return curve or nil
 end
 
 -- Returns false when the client can't do it; the caller then keeps the widget hidden.
-function API.BindHealthGate(frame, unit, threshold)
-    local curve = stepCurve(threshold)
+function API.BindHealthGate(frame, unit, threshold, warn)
+    local curve = gateCurve(threshold, warn)
     if not curve or not UnitHealthPercent then return false end
     return (pcall(function() frame:SetAlpha(UnitHealthPercent(unit, true, curve)) end))
 end

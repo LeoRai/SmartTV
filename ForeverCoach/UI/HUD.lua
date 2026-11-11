@@ -345,15 +345,23 @@ function HUD:ShowPrep(r, centered)
 end
 
 -- Show a health-gated hint over its slot; the client decides the visibility from hidden health.
+-- With a warning band (gate.warn) the icon fades in faintly before the threshold and gets its frame
+-- only at the threshold, so the switch never comes out of nowhere.
 local function showGate(f, rec, color)
     if not rec then
         f:Hide()
         return
     end
     setIcon(f, rec)
-    setRing(f, color, 0.5, true)
+    local warn = rec.gate.warn and rec.gate.warn / 100 or nil
+    setRing(f, color, warn and 0 or 0.5, not warn)
     f:Show()
-    if not API.BindHealthGate(f, rec.gate.unit, rec.threshold) then f:SetAlpha(0) end
+    if not API.BindHealthGate(f, rec.gate.unit, rec.threshold, warn) then
+        f:SetAlpha(0)
+    elseif warn then
+        f.ring:SetAlpha(0)
+        API.BindHealthGate(f.ring, rec.gate.unit, rec.threshold)
+    end
 end
 
 local function hideGates(self)

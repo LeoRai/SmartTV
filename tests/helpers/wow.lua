@@ -62,6 +62,7 @@ function M.newWorld()
         noGcdSpell = false,  -- Forever: the global cooldown spell 61304 answers nil
         traits = nil,        -- talent spellID -> rank (trait system); nil = no trait API
         gateBinds = 0,       -- widgets bound to a health gate (UnitHealthPercent with a curve)
+        curves = {},         -- points of every curve created
     }
 end
 
@@ -117,6 +118,7 @@ function M.install(W)
     G.C_CurveUtil = {
         CreateCurve = function()
             local points = {}
+            W.curves[#W.curves + 1] = points
             return { AddPoint = function(_, x, y) points[#points + 1] = { x, y } end, points = points }
         end,
     }
