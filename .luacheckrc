@@ -14,12 +14,16 @@ globals = {
     "ForeverCoachCharDB", "ForeverCoach_Binding", "ForeverCoach_OnAddonCompartmentClick",
     "BINDING_HEADER_FOREVERCOACH", "BINDING_NAME_FOREVERCOACH_TOGGLE", "BINDING_NAME_FOREVERCOACH_BUILDS",
     "BINDING_NAME_FOREVERCOACH_PLAN", "BINDING_NAME_FOREVERCOACH_RECAP", "BINDING_NAME_FOREVERCOACH_SETTINGS",
-    "SLASH_FOREVERCOACH1", "SLASH_FOREVERCOACH2", "SlashCmdList", "UISpecialFrames",
+    "SLASH_FOREVERCOACH1", "SLASH_FOREVERCOACH2",
     -- defined by ForeverCoach_Probe
     "ForeverCoachProbeDB", "SLASH_FCPROBE1",
 }
 
 read_globals = {
+    -- The game's own tables: never re-assigned (that taints them and gets protected actions
+    -- blocked in the addon's name), only our own fields are written.
+    SlashCmdList = { fields = { FOREVERCOACH = { read_only = false }, FCPROBE = { read_only = false } } },
+    "UISpecialFrames",
     -- client API used by the addons
     "C_AddOns", "GetAddOnMetadata", "DEFAULT_CHAT_FRAME", "CreateFrame", "UIParent", "Minimap", "GameTooltip",
     "GetTime", "debugprofilestop", "GetLocale", "GetBuildInfo", "issecretvalue", "canaccessvalue", "C_Secrets",

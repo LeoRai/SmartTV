@@ -43,8 +43,6 @@ local function openKeyBindings()
     if api and api.OpenToCategory and api.KEYBINDINGS_CATEGORY_ID then
         if pcall(api.OpenToCategory, api.KEYBINDINGS_CATEGORY_ID) then return end
     end
-    if KeyBindingFrame_LoadUI then pcall(KeyBindingFrame_LoadUI) end
-    if KeyBindingFrame and ShowUIPanel then pcall(ShowUIPanel, KeyBindingFrame) end
 end
 
 function SettingsWindow:Create()

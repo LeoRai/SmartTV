@@ -238,9 +238,11 @@ function Commands:Run(cmd, arg)
     end
 end
 
+-- Only our own field of the game's SlashCmdList: assigning the global itself (even to the same
+-- table) taints it, and every protected macro that goes through it afterwards (/target, /cast,
+-- RestedXP's target buttons) is blocked in ForeverCoach's name.
 SLASH_FOREVERCOACH1 = "/fc"
 SLASH_FOREVERCOACH2 = "/forevercoach"
-SlashCmdList = SlashCmdList or {}
 SlashCmdList.FOREVERCOACH = function(msg)
     local cmd, arg = (msg or ""):match("^%s*(%S*)%s*(.-)%s*$")
     Commands:Run(cmd, arg)
