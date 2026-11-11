@@ -13,7 +13,7 @@
 
 | Who / what | Contribution | Link |
 |---|---|---|
-| Hekili Forever (defzach) | Reference for checking hints. Its GPLv3 code is **not** used. | [CurseForge](https://www.curseforge.com/wow/addons/hekili-forever) |
+| Hekili Forever (defzach) | Reference for checking hints and its editable priority lists (Action Packs). Its GPLv3 code and lists are **not** copied. | [CurseForge](https://www.curseforge.com/wow/addons/hekili-forever) |
 | Warcraft Tavern | Warlock spells by level | [Warlock Leveling Guide](https://www.warcrafttavern.com/forever/guides/warlock-leveling/) |
 | Conquest Capped | Addon restrictions in Forever | [Best WoW Forever Addons](https://conquestcapped.com/guides/wow-forever/wow-forever-addons/) |
 | ZBuilds | License of Talents Forever data (CC BY 4.0) | [CurseForge](https://www.curseforge.com/wow/addons/zbuilds) |
