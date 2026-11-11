@@ -247,3 +247,55 @@ describe("Fixes from the full review", function()
         assert.is_nil(ns.Timers.cast)
     end)
 end)
+
+describe("Fewer surprises in the queue", function()
+    local ns, W
+    before_each(function()
+        ns, W = addon.load()
+        addon.learnUpTo(ns, W, 20)
+        W.pet = { hp = 100, hpMax = 100, family = "Демон Бездны" }
+        W.target = { hp = 100, hpMax = 100, enemy = true, guid = "mob-1" }
+        W.player.combat = true
+        ns.Timers:DetectPet()
+    end)
+
+    it("does not count mobs fighting someone else", function()
+        W.units.nameplate1 = { enemy = true, combat = true, guid = "other-mob" } -- busy with another player
+        W.units.nameplate2 = { enemy = true, combat = true, guid = "mob-2", petThreat = 3 } -- on our demon
+        W.plates = { "nameplate1", "nameplate2" }
+        local _, s = addon.compute(ns, W)
+        assert.equal(2, s.enemies) -- the target and the mob on the demon
+    end)
+
+    it("uses a new enemy count only after it holds for a moment", function()
+        local _, s = addon.compute(ns, W)
+        assert.equal(1, s.enemies)
+        W.units.nameplate1 = { enemy = true, combat = true, guid = "mob-2", threat = 1 }
+        W.plates = { "nameplate1" }
+        _, s = addon.compute(ns, W)
+        assert.equal(1, s.enemies) -- the add just appeared
+        W.time = W.time + 0.2
+        _, s = addon.compute(ns, W)
+        assert.equal(1, s.enemies)
+        W.time = W.time + 0.3
+        _, s = addon.compute(ns, W)
+        assert.equal(2, s.enemies)
+        -- it stepped out of range for a blink: the count stays
+        W.plates = {}
+        W.time = W.time + 0.1
+        _, s = addon.compute(ns, W)
+        assert.equal(2, s.enemies)
+    end)
+
+    it("keeps unaffordable spells out of the forecast until Life Tap", function()
+        W.auras.target = { { spellId = 1094, expirationTime = W.time + 30 }, { spellId = 6222, expirationTime = W.time + 30 },
+                           { spellId = 1014, expirationTime = W.time + 30 } }
+        for _, id in ipairs({ 1088, 1094, 6222, 1014, 1120, 689, 5676 }) do W.usable[id] = false; W.noMana[id] = true end
+        local r = addon.compute(ns, W)
+        assert.same({ "life_tap", "shadow_bolt", "shadow_bolt", "shadow_bolt" }, addon.mainActions(r))
+        -- too little health to tap: the wand, all the way
+        W.player.hp = 30
+        r = addon.compute(ns, W)
+        assert.same({ "shoot", "shoot", "shoot", "shoot" }, addon.mainActions(r))
+    end)
+end)

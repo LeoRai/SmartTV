@@ -38,6 +38,7 @@ Integrations\TalentsForever.lua
 Core\BuildMatcher.lua
 Core\Conditions.lua
 Core\Engine.lua
+Core\Surprises.lua
 
 # Interface
 UI\Widgets.lua

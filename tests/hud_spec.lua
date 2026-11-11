@@ -87,8 +87,8 @@ describe("Block", function()
     it("switches to AoE from three enemies: Hellfire from 30, Rain of Fire before", function()
         addon.learnUpTo(ns, W, 30)
         fight(W)
-        W.units.nameplate1 = { enemy = true, combat = true }
-        W.units.nameplate2 = { enemy = true, combat = true }
+        W.units.nameplate1 = { enemy = true, combat = true, threat = 1 }
+        W.units.nameplate2 = { enemy = true, combat = true, threat = 0 }
         W.plates = { "nameplate1", "nameplate2" }
         local r, s = addon.compute(ns, W)
         assert.equal(3, s.enemies)
@@ -98,8 +98,8 @@ describe("Block", function()
         ns, W = addon.load()
         addon.learnUpTo(ns, W, 24)
         fight(W)
-        W.units.nameplate1 = { enemy = true, combat = true }
-        W.units.nameplate2 = { enemy = true, combat = true }
+        W.units.nameplate1 = { enemy = true, combat = true, threat = 1 }
+        W.units.nameplate2 = { enemy = true, combat = true, threat = 0 }
         W.plates = { "nameplate1", "nameplate2" }
         r = addon.compute(ns, W)
         assert.equal("rain_of_fire", r.main[1].action)

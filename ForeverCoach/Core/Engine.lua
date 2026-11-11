@@ -96,7 +96,13 @@ local function auraField(rem, f, refreshWindow)
 end
 
 Engine.vars = {
-    player = { arity = 1, check = fieldCheck(PLAYER, "player"), get = function(ctx, f) return ctx.s.player[f] end },
+    player = {
+        arity = 1, check = fieldCheck(PLAYER, "player"),
+        get = function(ctx, f)
+            if f == "oom" then return ctx.oom end -- the forecast clears it after Life Tap
+            return ctx.s.player[f]
+        end,
+    },
     target = {
         arity = 1, check = fieldCheck(TARGET, "target"),
         get = function(ctx, f)
@@ -255,6 +261,7 @@ end
 
 local function resetContext(ctx, s)
     ctx.s, ctx.t = s, s.now
+    ctx.oom = s.player and s.player.oom or false -- out of mana until a spell restores it
     ns.wipe(ctx.debuffs); ns.wipe(ctx.buffs); ns.wipe(ctx.cds); ns.wipe(ctx.last)
     return ctx
 end
@@ -284,6 +291,7 @@ local function simulate(ctx, line)
     local sp = line.spell
     local cast = castTimeAt(ctx, line.action, sp)
     applyEffects(ctx, line.action, sp, ctx.t + cast)
+    if sp.restoresMana then ctx.oom = false end
     local busy = cast
     if sp.gcd ~= false and busy < ctx.s.gcd then busy = ctx.s.gcd end
     ctx.t = ctx.t + busy
@@ -312,6 +320,9 @@ local function available(ctx, line, realTime)
     if cooldownRemains(ctx, key) > EPS then return false end
     -- A channel already planned in this forecast is not planned twice in a row.
     if not realTime and sp.channel and ctx.last[key] then return false end
+    -- Mana does not come back by itself within a forecast: what is unaffordable now stays so
+    -- until a spell that restores mana is planned (Life Tap).
+    if not realTime and ctx.oom and s.noMana[key] then return false end
     if realTime then
         if s.usable[key] == false then return false end
         if sp.harmful and s.inRange and s.inRange[key] == false then return true, true end

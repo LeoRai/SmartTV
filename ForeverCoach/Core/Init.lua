@@ -76,8 +76,14 @@ local function copyDefaults(dst, src)
 end
 ns.CopyDefaults = copyDefaults
 
+-- Data that is not a setting survives /fc reset.
+ns.KeepOnReset = { builds = true, trainerVisit = true, trainerPlace = true, surprises = true, warnedData = true }
+
 function ns:ResetSettings()
+    local kept = {}
+    for key in pairs(ns.KeepOnReset) do kept[key] = ns.db[key] end
     ns.wipe(ns.db)
+    for key, value in pairs(kept) do ns.db[key] = value end
     copyDefaults(ns.db, ns.Defaults)
 end
 

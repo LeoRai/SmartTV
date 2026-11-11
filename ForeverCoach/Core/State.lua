@@ -37,6 +37,7 @@ State.FALLBACK = {
 local FALLBACK = State.FALLBACK
 
 local GCD_SPELL = 61304 -- the client's global cooldown spell (if present)
+State.ENEMIES_STEADY = 0.4 -- seconds a new enemy count must hold
 
 -- The snapshot table is reused: no garbage at 10 updates per second.
 local s = {
@@ -138,12 +139,28 @@ end
 
 local plates = {}
 
+-- An enemy counts when it fights us: the player or the demon is on its threat list (readable in
+-- Forever). Mobs busy with other players nearby do not count. Where threat is hidden, any enemy
+-- in combat counts, as before.
+local function engaged(unit, hasPet)
+    if not UnitThreatSituation then return API.InCombat(unit) ~= false end
+    local mine = UnitThreatSituation("player", unit)
+    if API.IsSecret(mine) then return API.InCombat(unit) ~= false end
+    if mine ~= nil then return true end
+    if hasPet then
+        local pet = UnitThreatSituation("pet", unit)
+        if API.IsSecret(pet) then return API.InCombat(unit) ~= false end
+        if pet ~= nil then return true end
+    end
+    return false
+end
+
 -- The target's own nameplate is recognised by GUID (readable in combat in Forever); a unit
 -- comparison may be hidden and would count the target twice.
-local function countEnemies(fillerID, targetEnemy, inCombat, targetGUID)
+local function countEnemies(fillerID, targetEnemy, inCombat, targetGUID, hasPet)
     local n, targetCounted = 0, false
     for _, unit in ipairs(API.NamePlateUnits(plates)) do
-        if API.CanAttack(unit) and not API.IsDead(unit) and API.InCombat(unit) ~= false
+        if API.CanAttack(unit) and not API.IsDead(unit) and engaged(unit, hasPet)
             and (not fillerID or API.SpellInRange(fillerID, unit) ~= false) then
             n = n + 1
             if targetGUID and API.GUID(unit) == targetGUID then
@@ -354,7 +371,17 @@ function State:Refresh(now)
     s.shards = s.items.soul_shard and s.items.soul_shard.count or 0
 
     -- Enemies near ---------------------------------------------------------
-    s.enemies = countEnemies(fillerID, t.enemy, p.in_combat, t.guid)
+    -- A new count must hold for a moment before it is used: a mob stepping in and out of range
+    -- must not flip AoE and "fear the second enemy" on and off.
+    local raw = countEnemies(fillerID, t.enemy, p.in_combat, t.guid, pe.exists)
+    if not p.in_combat or raw == self.enemies or self.enemies == nil then
+        self.enemies, self.enemiesPending = raw, nil
+    elseif raw ~= self.enemiesPending then
+        self.enemiesPending, self.enemiesSince = raw, now
+    elseif now - self.enemiesSince >= State.ENEMIES_STEADY then
+        self.enemies, self.enemiesPending = raw, nil
+    end
+    s.enemies = self.enemies
 
     return s
 end

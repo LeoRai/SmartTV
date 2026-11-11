@@ -34,6 +34,7 @@ L.HELP = {
     "/fc debug - print the reason for every hint",
     "/fc state - print the current game snapshot",
     "/fc perf - update timing",
+    "/fc surprises - hints that jumped in unexpectedly (clear - forget them)",
     "/fc reset - reset position and settings",
 }
 L.HINTS_SHOWN = "Hints shown."
@@ -59,6 +60,10 @@ L.BLOCKED = "The game blocked an action of the addon: %s. Please send this line 
 L.DEBUG_PICK = "%s <- %s"
 L.DEBUG_NONE = "no hint: %s"
 L.HIDDEN_SUFFIX = " (hidden, assumed %s)"
+L.SURPRISE_LINE = "%s, %.0f s into the fight: suddenly %s, the queue was %s. %s"
+L.SURPRISES_NONE = "No unexpected hint changes so far."
+L.SURPRISES_HEAD = "Unexpected hint changes: %d, the last %d below. They are saved in WTF\\Account\\<account>\\<realm>\\<character>\\SavedVariables\\ForeverCoach.lua: send that file to the developer."
+L.SURPRISES_CLEARED = "The list of unexpected hint changes is cleared."
 
 -- Modes
 L.MODE_auto = "Auto"

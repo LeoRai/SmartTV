@@ -176,7 +176,7 @@ describe("Engine", function()
         addon.learnUpTo(ns, W, 20)
         fight(ns, W)
         -- The target has no nameplate here; one more enemy has one.
-        W.units.nameplate1 = { enemy = true, combat = true }
+        W.units.nameplate1 = { enemy = true, combat = true, threat = 0 }
         W.plates = { "nameplate1" }
         local r, s = addon.compute(ns, W)
         assert.equal(2, s.enemies)

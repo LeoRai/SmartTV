@@ -115,7 +115,7 @@ ns.Data:DefineClass("WARLOCK", function()
 
             -- Resources ---------------------------------------------------------
             life_tap = {
-                role = "utility", source = "trainer",
+                role = "utility", source = "trainer", restoresMana = true,
                 ranks = { {1454, 6}, {1455, 16}, {1456, 26}, {11687, 36}, {11688, 46}, {11689, 56} },
             },
             amplify_curse = {

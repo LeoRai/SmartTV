@@ -68,6 +68,7 @@ function Loop:Update()
     ns.HUD:Render(r, s, now)
     ns.Sounds:Update(r, s, now)
     if s and r and ns.db.debug then self:Debug(r, s) end
+    ns.SafeCall("surprises", ns.Surprises.Track, ns.Surprises, r, s, now)
     Events:Fire("FC_RECOMMENDATION", r, s) -- combat recap (stage 3) listens here
 end
 
@@ -205,6 +206,20 @@ function Commands:Run(cmd, arg)
         ns.Print(ns.db.debug and L.DEBUG_ON or L.DEBUG_OFF)
     elseif cmd == "state" then
         dumpState()
+    elseif cmd == "surprises" then
+        local Surprises = ns.Surprises
+        if (arg or ""):lower() == "clear" then
+            Surprises.Clear()
+            ns.Print(L.SURPRISES_CLEARED)
+            return
+        end
+        local list = Surprises.List()
+        if #list == 0 then
+            ns.Print(L.SURPRISES_NONE)
+            return
+        end
+        ns.Print(L.SURPRISES_HEAD, #list, math.min(#list, Surprises.SHOW))
+        for i = math.max(1, #list - Surprises.SHOW + 1), #list do ns.Print(Surprises.Format(list[i])) end
     elseif cmd == "perf" then
         local st = Loop.stats
         ns.Print(L.PERF, st.n, st.n > 0 and st.total / st.n or 0, st.max)

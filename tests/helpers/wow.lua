@@ -105,6 +105,14 @@ function M.install(W)
     G.UnitClassification = function(unit) local d = unitData(unit); return d and d.class or "normal" end
     G.UnitIsPlayer = function(unit) local d = unitData(unit); return d and d.player or false end
     G.UnitIsUnit = function(a, b) return a == b end
+    -- Threat: units list who they fight (threat = the player, petThreat = the demon); nil = not us.
+    G.UnitThreatSituation = function(who, unit)
+        local d = unitData(unit)
+        if not d then return nil end
+        if who == "pet" then return d.petThreat end
+        if unit == "target" and d.threat == nil and W.player.combat then return 1 end
+        return d.threat
+    end
     G.UnitHealth = function(unit)
         local d = unitData(unit)
         if not d then return 0 end
