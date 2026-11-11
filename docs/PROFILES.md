@@ -19,7 +19,17 @@ corruption = {
 
 Остальные поля: `channel`, `cooldown`, `gcd = false` (вне ГКД), `buff` (вешает бафф на себя), `consumes` (тратит прок), `requires` (нужен свой дебафф), `consumesDebuff` (снимает свой дебафф с цели: Поджигание — Жертвенный огонь) и `keepsDebuff = { talent, rank }` (с этим талантом дебафф остаётся: «Тень и пламя» 5/5), `talent` (заклинание даёт талант: первый ранг с источником `"talent"`, следующие продаёт учитель тем, у кого талант есть), `pet` и `petFamily` (способность демона), `wand`, `harmful` (нужна враждебная цель; для боевых ролей включено само).
 
-Профили чернокнижника: `Warlock_Generic_Leveling` (общий), `Warlock_Affliction_Leveling`, `Warlock_Demonology_Leveling`, `Warlock_Destruction_Leveling`. Каждая строка должна следовать из данных Forever: уровней учителя (выгрузка разведки) или текстов талантов (Talents Forever). Чего нет в данных — нет в профиле: «Испепеление», «Сокрушение», «Демонический пакт», «Бич Хаоса» ждут текста подсказки из игры.
+Профили чернокнижника: `Warlock_Generic_Leveling` (общий), `Warlock_Affliction_Leveling`, `Warlock_Demonology_Leveling`, `Warlock_Destruction_Leveling`. Каждая строка должна следовать из данных Forever, а не из памяти о классике:
+
+- уровни и ранги заклинаний — выгрузка разведки (`/fcprobe`, список учителя);
+- тексты талантов Forever — данные Talents Forever (`TalentsForeverBookData`);
+- активные таланты без текста в Talents Forever и порядок ротации — гайды по WoW Forever, когда несколько источников сходятся:
+  - бич и проклятие висят на цели вместе, один бич и одно проклятие на чернокнижника ([guided.news](https://guided.news/en/news/wow-forever-rogues-axes-warlocks-banes-curses/), [Zockify](https://www.zockify.com/forever/warlock/), [conquestcapped](https://conquestcapped.com/guides/wow-forever/wow-forever-warlock-talents/));
+  - «Сокрушение» — канал 6 с, пока он идёт, Порча, Вытягивание жизни и Бич агонии тикают быстрее (переделка 10 ноября); порядок: доты, «Сокрушение», Стрела Тьмы; при нехватке здоровья — Похищение жизни ([Warcraft Tavern](https://www.warcrafttavern.com/forever/guides/warlock-leveling/), [Icy Veins](https://www.icy-veins.com/wow-forever/affliction-warlock-leveling), [timesaver.gg](https://timesaver.gg/blog/wow-forever-class-changes-november-10));
+  - «Испепеление» — на 25% сильнее по цели с Жертвенным огнём, основной удар Разрушения, когда он есть; до 40 — Стрела Тьмы ([Icy Veins](https://www.icy-veins.com/wow-forever/destruction-warlock-leveling), [Gfinity](https://www.gfinityesports.com/article/world-of-warcraft-forever-warlock-class-guide-specs-builds));
+  - «Поджигание» съедает Жертвенный огонь, «Тень и пламя» 5/5 его сохраняет ([Icy Veins](https://www.icy-veins.com/wow-forever/destruction-warlock-ranged-dps-pve-rotation-cooldowns-abilities), тексты Talents Forever).
+
+Не в ротации: «Бич Хаоса» (бич на второй цели, а подсказка ведёт одну), «Демонический пакт» (держит бафф Демонического жертвоприношения, в бою кнопок не добавляет). Строки с условием по скрытому здоровью или мане (жезл на добивание, «здоровья больше 50%» у Адского пламени) в Forever берут допущение 100% — надёжны только «ворота».
 
 В том же файле: `buffs` (баффы на себе; `glow` — заклинание, которое клиент подсвечивает при проке), `talents` (ID рангов), `items` (ID от лучшего к худшему), `pets` (призыв и названия семейства на enUS/ruRU).
 

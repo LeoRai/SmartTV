@@ -88,6 +88,7 @@ L.OUT_OF_RANGE = "Out of range"
 -- A line under the block for a hint the client shows by hidden health or mana (gate alert)
 L.ALERT_LOW_MANA = "Low mana"
 L.ALERT_EXECUTE = "Target almost dead"
+L.ALERT_LOW_HEALTH = "Low health"
 L.NO_MANA = "Not enough mana"
 L.UNLOCKED_LABEL = "ForeverCoach\ndrag me"
 
@@ -124,6 +125,9 @@ L.WHY_SHADOWBURN = "the target is almost dead and you keep enough Soul Shards: f
 L.WHY_IMMOLATE_FIRST = "Immolate first: Conflagrate works only on a burning target"
 L.WHY_CONFLAGRATE = "Immolate is on the target: Conflagrate burns it away for a strong hit (Shadow and Flame 5/5 keeps it)"
 L.WHY_DEMONIC_BRAND = "Demonic Brand: Searing Pain brands the target and your demon's next 6 attacks hit harder"
+L.WHY_WRACK = "your dots are up: while Wrack channels, Corruption, Siphon Life and Bane of Agony tick faster"
+L.WHY_INCINERATE = "the target burns: Incinerate deals 25% more to a target with Immolate"
+L.WHY_CURSE_ELEMENTS = "a strong enemy: a Bane and a Curse stack in Forever, Curse of the Elements raises the magic damage it takes"
 
 -- Settings window (layout of the mockup: Look, Mode | Thresholds, Sound, Keys)
 L.SETTINGS_TITLE = "Settings"

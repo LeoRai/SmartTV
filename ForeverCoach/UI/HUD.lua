@@ -250,7 +250,7 @@ function HUD:Create()
     -- Lines under the block for the main hints the client shows by hidden mana or health
     -- ("Low mana: Life Tap"): they fade in and leave the main icon in sight.
     self.alerts, self.alertList, self.takeoverList = {}, {}, {}
-    for i = 1, 2 do
+    for i = 1, 3 do
         local a = createPill(frame)
         W.Box(a, { 0.055, 0.059, 0.075 }, C.line, 1, 0.9)
         a.icon = a:CreateTexture(nil, "ARTWORK")
@@ -434,7 +434,7 @@ end
 local function hideGates(self)
     for i = 1, 2 do self.mainGates[i]:Hide() end
     for i = 1, 3 do self.defenseGates[i]:Hide() end
-    for i = 1, 2 do showAlert(self.alerts[i], nil) end
+    for i = 1, 3 do showAlert(self.alerts[i], nil) end
 end
 
 local function hideAll(self)
@@ -544,7 +544,7 @@ function HUD:Render(r, s, now)
                 end
             end
         end
-        for i = 1, 2 do showAlert(self.alerts[i], alerts[i]) end
+        for i = 1, 3 do showAlert(self.alerts[i], alerts[i]) end
         for i = 1, 2 do showTakeover(self.mainGates[i], takeovers[i]) end
         for i = 1, 3 do showGate(self.defenseGates[i], r.gatedDefense[i], C.danger) end
 

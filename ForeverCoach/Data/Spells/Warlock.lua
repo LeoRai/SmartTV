@@ -58,6 +58,12 @@ ns.Data:DefineClass("WARLOCK", function()
                 role = "execute", source = "trainer", channel = true, cast = 15,
                 ranks = { {1120, 10}, {8288, 24}, {8289, 38}, {11675, 52} },
             },
+            wrack = { -- new in Forever: the last talent of Affliction (row 7: level 40 at the earliest), one
+                -- rank. A 6 s channel; while it channels Corruption, Siphon Life and Bane of Agony tick
+                -- faster (Forever guides, after the Nov 10 hotfix). No trainer ranks (stage 0 dump).
+                role = "drain", harmful = true, source = "trainer", talent = "wrack", channel = true, cast = 6,
+                ranks = { {1316697, 40, "talent"} },
+            },
             drain_life = {
                 role = "drain", source = "trainer", channel = true, cast = 5,
                 ranks = { {689, 14}, {699, 22}, {709, 30}, {7651, 38}, {11699, 46}, {11700, 54} },
@@ -82,7 +88,7 @@ ns.Data:DefineClass("WARLOCK", function()
                 ranks = { {1293817, 25, "talent"}, {1293818, 32}, {17962, 40}, {18930, 48}, {18931, 54}, {18932, 60} },
             },
             incinerate = { -- new in Forever: the last talent of Destruction (row 7: level 40 at the earliest),
-                -- the trainer sells ranks 2 and 3. Not in any rotation yet: Talents Forever has no text for it.
+                -- the trainer sells ranks 2 and 3. 25% more damage on a target with Immolate (Forever guides).
                 role = "filler", source = "trainer", talent = "incinerate", cast = 2.5,
                 ranks = { {412758, 40, "talent"}, {1293812, 50}, {1293813, 60} },
             },
@@ -222,6 +228,7 @@ ns.Data:DefineClass("WARLOCK", function()
             conflagrate = { ids = { 1293817 }, tree = 3 },
             shadow_and_flame = { ids = { 426316 }, tree = 3 },
             incinerate = { ids = { 412758 }, tree = 3 },
+            wrack = { ids = { 1316697 }, tree = 1 },
             demonic_brand = { ids = { 1293695 }, tree = 2 },
             decimation = { ids = { 440870 }, tree = 2 },
         },

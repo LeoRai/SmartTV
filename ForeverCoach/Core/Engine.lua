@@ -441,7 +441,7 @@ function Engine:Recommend(s, prepared, depth)
             gated = ns.wipe(self.gatedLines)
             line, oor = pickRow(ctx, prepared.main, gated)
             for k, g in ipairs(gated) do
-                if k > 2 then break end
+                if k > 3 then break end
                 r.gatedMainRecs[k] = r.gatedMainRecs[k] or {}
                 r.gatedMains[k] = fill(r.gatedMainRecs[k], ctx, g, false)
             end

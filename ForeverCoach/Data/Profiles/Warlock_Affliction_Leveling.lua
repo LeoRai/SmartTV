@@ -1,4 +1,6 @@
 -- Warlock, Affliction, leveling: dots, Siphon Life and drain-tanking behind the demon.
+-- Wrack (row 7) after the dots: while it channels the dots tick faster; Drain Life instead when health
+-- runs low (Forever guides: Warcraft Tavern, Icy Veins; opener Agony, Corruption, Siphon Life, Wrack).
 -- Matched when Affliction holds most talent points (stage 2: exact Talents Forever builds).
 local ADDON, ns = ...
 
@@ -15,6 +17,7 @@ ns.Data:DefineProfile("WARLOCK", function()
             -- Health gates (gate = ...): Forever hides health from addons, the client shows these itself.
             { "drain_soul", "soul_shards < opt.shards", gate = { unit = "target", below = 20, warn = 15, takeover = true }, alert = "ALERT_EXECUTE", why = "WHY_EXECUTE_SHARD" },
             { "life_tap", "player.hp_pct > opt.hp", gate = { unit = "player", power = "mana", below = 15, warn = 15 }, alert = "ALERT_LOW_MANA", why = "WHY_LIFE_TAP" },
+            { "drain_life", "", gate = { unit = "player", below = 70, warn = 10 }, alert = "ALERT_LOW_HEALTH", why = "WHY_DRAIN_LIFE" },
             { "shadow_bolt", "buff.shadow_trance.up", why = "WHY_PROC", glow = true },
             { "hellfire", "enemies >= 3 & player.hp_pct > 50", why = "WHY_AOE_HELLFIRE" },
             { "rain_of_fire", "enemies >= 3 & !known.hellfire", why = "WHY_AOE_RAIN" },
@@ -22,9 +25,10 @@ ns.Data:DefineProfile("WARLOCK", function()
             { "siphon_life", "debuff.siphon_life.refreshable & target.ttd > 10", why = "WHY_DOT" },
             { "curse_of_agony", "debuff.curse_of_agony.refreshable & target.ttd > 10", why = "WHY_CURSE" },
             { "curse_of_weakness", "!known.curse_of_agony & debuff.curse_of_weakness.down & target.ttd > 10", why = "WHY_CURSE" },
+            { "curse_of_elements", "(target.elite | target.boss | target.player) & debuff.curse_of_elements.down", why = "WHY_CURSE_ELEMENTS" },
             { "corruption", "debuff.corruption.refreshable & target.ttd > 8", why = "WHY_DOT" },
             { "immolate", "!known.siphon_life & debuff.immolate.refreshable & target.ttd > 6 & player.mana_pct > 50", why = "WHY_DOT" },
-            { "drain_life", "player.hp_pct < 70", why = "WHY_DRAIN_LIFE" },
+            { "wrack", "debuff.corruption.up & debuff.curse_of_agony.up & (debuff.siphon_life.up | !known.siphon_life)", why = "WHY_WRACK" },
             { "shoot", "combat & (target.hp_pct < 25 | player.mana_pct < 30)", why = "WHY_WAND" },
             { "shadow_bolt", "", why = "WHY_FILLER" },
             { "shoot", "", why = "WHY_WAND_OOM" },

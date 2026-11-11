@@ -130,11 +130,12 @@ describe("Health gates in Forever", function()
     it("binds the gated hints to the client's health and mana curves", function()
         local r, s = addon.compute(ns, W)
         ns.HUD:Render(r, s, W.time)
-        -- Two lines under the block (Life Tap on top), Drain Soul over the main icon, three over
-        -- the defense slot.
-        assert.equal(6, W.gateBinds)
+        -- Three lines under the block (Life Tap, Drain Life, then Drain Soul), Drain Soul over the
+        -- main icon, three over the defense slot.
+        assert.equal(7, W.gateBinds)
         assert.equal("life_tap", ns.HUD.alerts[1].action)
-        assert.equal("drain_soul", ns.HUD.alerts[2].action)
+        assert.equal("drain_life", ns.HUD.alerts[2].action)
+        assert.equal("drain_soul", ns.HUD.alerts[3].action)
         assert.equal("drain_soul", ns.HUD.mainGates[1].rec.action)
     end)
 
@@ -321,5 +322,66 @@ describe("Fewer surprises in the queue", function()
         W.player.hp = 30
         r = addon.compute(ns, W)
         assert.same({ "shoot", "shoot", "shoot", "shoot" }, addon.mainActions(r))
+    end)
+end)
+
+describe("Profiles from Forever's own data", function()
+    local ns, W
+    local function fightAt(level, extra, profileId, talents)
+        ns, W = addon.load()
+        addon.learnUpTo(ns, W, level, extra)
+        W.traits = talents or {}
+        W.target = { hp = 100, hpMax = 100, enemy = true, guid = "mob" }
+        W.player.combat = true
+        addon.rescan(ns)
+        addon.compute(ns, W)
+        ns.Loop:Use(ns.Data.profiles[profileId])
+    end
+    local function dots(ids)
+        W.auras.target = {}
+        for _, id in ipairs(ids) do table.insert(W.auras.target, { spellId = id, expirationTime = W.time + 60 }) end
+    end
+
+    it("Destruction: Immolate first, Incinerate as the filler on a burning target", function()
+        fightAt(50, { 412758 }, "Warlock_Destruction_Leveling", { [412758] = 1 })
+        dots({ 11667, 11713, 11671 }) -- Immolate, Bane of Agony, Corruption of level 50
+        local r = addon.compute(ns, W)
+        assert.equal("incinerate", r.main[1].action)
+        dots({ 11713, 11671 })
+        assert.equal("immolate", addon.compute(ns, W).main[1].action)
+    end)
+
+    it("Affliction: Wrack once the dots are up, Shadow Bolt without it", function()
+        fightAt(45, { 18265, 1316697 }, "Warlock_Affliction_Leveling", { [18265] = 1, [1316697] = 1 })
+        dots({ 11712, 11671, 18879 }) -- Bane of Agony, Corruption, Siphon Life
+        assert.equal("wrack", addon.compute(ns, W).main[1].action)
+        fightAt(45, { 18265 }, "Warlock_Affliction_Leveling", { [18265] = 1 })
+        dots({ 11712, 11671, 18879 })
+        assert.equal("shadow_bolt", addon.compute(ns, W).main[1].action)
+    end)
+
+    it("puts Curse of the Elements next to Bane of Agony on a strong target only", function()
+        fightAt(30, nil, "Warlock_Generic_Leveling")
+        local function hasElements()
+            for _, a in ipairs(addon.mainActions(addon.compute(ns, W))) do
+                if a == "curse_of_elements" then return true end
+            end
+            return false
+        end
+        assert.is_false(hasElements())
+        W.target.class = "elite"
+        assert.is_true(hasElements())
+    end)
+
+    it("hands Drain Life to the display by hidden health, as a line under the block", function()
+        fightAt(20, nil, "Warlock_Generic_Leveling")
+        W.secret = { ["player.hp"] = true }
+        local r = addon.compute(ns, W)
+        local found
+        for _, g in ipairs(r.gatedMains) do if g.action == "drain_life" then found = g end end
+        assert.is_table(found)
+        assert.equal(0.4, found.threshold)
+        assert.equal("ALERT_LOW_HEALTH", found.line.alert)
+        for _, a in ipairs(addon.mainActions(r)) do assert.are_not.equal("drain_life", a) end
     end)
 end)

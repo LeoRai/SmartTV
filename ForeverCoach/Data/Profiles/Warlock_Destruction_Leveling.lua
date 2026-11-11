@@ -3,7 +3,9 @@
 --   Shadow and Flame is full; Bane, Improved Shadow Bolt and Ruin make Shadow Bolt the filler;
 --   Shadowburn (talent, row 3) costs a Soul Shard, so it finishes a dying target only while
 --   enough shards are kept (Drain Soul collects them otherwise).
--- Not here yet: Incinerate, Bane of Havoc (no text for them in Talents Forever).
+-- Incinerate (row 7) replaces Shadow Bolt on a burning target: 25% more damage with Immolate, the
+-- main damage spell once it is there (Icy Veins' WoW Forever Destruction leveling guide).
+-- Not here: Bane of Havoc (a second target's bane: the hint follows one target).
 -- Matched when Destruction holds most talent points or a Destruction build is chosen.
 local ADDON, ns = ...
 
@@ -20,17 +22,19 @@ ns.Data:DefineProfile("WARLOCK", function()
             { "drain_soul", "soul_shards < opt.shards", gate = { unit = "target", below = 20, warn = 15, takeover = true }, alert = "ALERT_EXECUTE", why = "WHY_EXECUTE_SHARD" },
             { "shadowburn", "soul_shards >= opt.shards", gate = { unit = "target", below = 20, warn = 15, takeover = true }, alert = "ALERT_EXECUTE", why = "WHY_SHADOWBURN" },
             { "life_tap", "player.hp_pct > opt.hp", gate = { unit = "player", power = "mana", below = 15, warn = 15 }, alert = "ALERT_LOW_MANA", why = "WHY_LIFE_TAP" },
+            { "drain_life", "", gate = { unit = "player", below = 40, warn = 10 }, alert = "ALERT_LOW_HEALTH", why = "WHY_DRAIN_LIFE" },
             { "shadow_bolt", "buff.shadow_trance.up", why = "WHY_PROC", glow = true },
             { "hellfire", "enemies >= 3 & player.hp_pct > 50", why = "WHY_AOE_HELLFIRE" },
             { "rain_of_fire", "enemies >= 3 & !known.hellfire", why = "WHY_AOE_RAIN" },
             { "life_tap", "player.oom & player.hp_pct > opt.hp", why = "WHY_LIFE_TAP" },
-            { "drain_life", "player.hp_pct < 40", why = "WHY_DRAIN_LIFE" },
             { "immolate", "debuff.immolate.refreshable & target.ttd > 6", why = "WHY_IMMOLATE_FIRST" },
             { "conflagrate", "debuff.immolate.up", why = "WHY_CONFLAGRATE" },
             { "curse_of_agony", "debuff.curse_of_agony.refreshable & target.ttd > 10", why = "WHY_CURSE" },
             { "curse_of_weakness", "!known.curse_of_agony & debuff.curse_of_weakness.down & target.ttd > 10", why = "WHY_CURSE" },
+            { "curse_of_elements", "(target.elite | target.boss | target.player) & debuff.curse_of_elements.down", why = "WHY_CURSE_ELEMENTS" },
             { "corruption", "debuff.corruption.refreshable & target.ttd > 8", why = "WHY_DOT" },
             { "shoot", "combat & (target.hp_pct < 25 | player.mana_pct < 25)", why = "WHY_WAND" },
+            { "incinerate", "debuff.immolate.up", why = "WHY_INCINERATE" },
             { "shadow_bolt", "", why = "WHY_FILLER" },
             { "shoot", "", why = "WHY_WAND_OOM" },
         },
