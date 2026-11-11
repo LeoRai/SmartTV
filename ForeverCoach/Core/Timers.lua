@@ -8,6 +8,7 @@ local API, Data = ns.API, ns.Data
 
 local Timers = {
     cast = nil,     -- { key, id, startTime, endTime, channel, guid }
+    landing = nil,  -- a cast that just finished, until the game confirms (SUCCEEDED) or refuses it
     gcdEnd = 0,
     last = {},      -- key -> time of the last successful cast
     cd = {},        -- key -> ready at
@@ -55,8 +56,34 @@ function Timers:OnCastStart(spellID, t, channel)
     if sp.gcd ~= false then self.gcdEnd = t + (def.gcd or 1.5) end
 end
 
-function Timers:OnCastStop()
+-- How long a finished cast counts as landing while the game's confirmation is on its way.
+-- Covers the server round trip: without it the hint shows the spell again for a moment
+-- (player report: Immolate came back for a second right after it was cast).
+Timers.LANDING_GRACE = 0.6
+
+-- The cast bar ended. A cast that reached its end is landing until SUCCEEDED or FAILED arrives;
+-- one stopped early is simply gone.
+function Timers:OnCastStop(t)
+    local c = self.cast
     self.cast = nil
+    if c and not c.channel and t and t >= c.endTime - 0.2 then
+        c.landingUntil = t + Timers.LANDING_GRACE
+        self.landing = c
+    end
+end
+
+-- FAILED / INTERRUPTED / CHANNEL_STOP: nothing lands.
+function Timers:OnCastCancel()
+    self.cast, self.landing = nil, nil
+end
+
+-- The cast to play forward at time t: the one in progress, else the one landing right now.
+function Timers:Pending(t)
+    local c = self.cast
+    if c and (c.endTime > t or (not c.channel and t - c.endTime < Timers.LANDING_GRACE)) then return c end
+    local l = self.landing
+    if l and l.landingUntil > t then return l end
+    return nil
 end
 
 -- The spell went off: start cooldowns, debuffs and buffs.
@@ -65,10 +92,14 @@ function Timers:OnCastSucceeded(spellID, t, targetGUID)
     if not key then return end
     local current = self.cast
     local wasCast = current and current.id == spellID
+    if not wasCast and self.landing and self.landing.id == spellID then
+        current, wasCast = self.landing, true -- the cast bar already stopped: same cast, confirmed now
+    end
     if not wasCast and sp.gcd ~= false then
         self.gcdEnd = t + (def.gcd or 1.5) -- instant spell: no START event before this one
     end
     if wasCast and not current.channel then self.cast = nil end
+    if wasCast then self.landing = nil end
 
     self.last[key] = t
     if sp.cooldown then self.cd[key] = t + sp.cooldown end
@@ -163,8 +194,9 @@ Events:On("UNIT_SPELLCAST_CHANNEL_START", Timers, function(self, _, _, _, spellI
     self:OnCastSucceeded(spellID, now(), self.targetGUID) -- channels report success at the start
     dirty()
 end, "player")
-for _, event in ipairs({ "UNIT_SPELLCAST_STOP", "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_CHANNEL_STOP" }) do
-    Events:On(event, Timers, function(self) self:OnCastStop(); dirty() end, "player")
+Events:On("UNIT_SPELLCAST_STOP", Timers, function(self) self:OnCastStop(now()); dirty() end, "player")
+for _, event in ipairs({ "UNIT_SPELLCAST_FAILED", "UNIT_SPELLCAST_INTERRUPTED", "UNIT_SPELLCAST_CHANNEL_STOP" }) do
+    Events:On(event, Timers, function(self) self:OnCastCancel(); dirty() end, "player")
 end
 Events:On("UNIT_SPELLCAST_SUCCEEDED", Timers, function(self, _, _, _, spellID)
     local current = self.cast

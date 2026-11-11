@@ -150,3 +150,59 @@ describe("Health gates in Forever", function()
         assert.equal(0, fade[4][2])
     end)
 end)
+
+describe("A cast that just finished", function()
+    local ns, W
+    before_each(function()
+        ns, W = addon.load()
+        addon.learnUpTo(ns, W, 12)
+        W.target = { hp = 100, hpMax = 100, enemy = true }
+        W.player.combat = true
+        W.auraError = true
+        W.castTimes[707] = 2000
+        W.auras.target = { { spellId = 980, expirationTime = W.time + 30 }, { spellId = 172, expirationTime = W.time + 30 } }
+        ns.Timers:OnTargetChanged("guid-target", W.time)
+        -- Curse of Agony and Corruption are already up (own timers).
+        ns.Events:Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "a", 980)
+        ns.Events:Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "b", 172)
+        W.time = W.time + 2
+        -- Immolate rank 2: a 2 s cast.
+        W.casting = { spellID = 707, startMS = W.time * 1000, endMS = (W.time + 2) * 1000 }
+        ns.Events:Fire("UNIT_SPELLCAST_START", "player", "c", 707)
+    end)
+
+    local function mainAction()
+        return addon.compute(ns, W).main[1].action
+    end
+
+    it("does not come back while the game's confirmation is on its way", function()
+        assert.are_not.equal("immolate", mainAction())
+        -- The cast bar is gone, the confirmation is not here yet.
+        W.time = W.time + 2.05
+        W.casting = nil
+        assert.are_not.equal("immolate", mainAction())
+        -- The game reports the end of the cast bar first, then the success.
+        ns.Events:Fire("UNIT_SPELLCAST_STOP", "player", "c", 707)
+        W.time = W.time + 0.2
+        assert.are_not.equal("immolate", mainAction())
+        ns.Events:Fire("UNIT_SPELLCAST_SUCCEEDED", "player", "c", 707)
+        local r = addon.compute(ns, W)
+        assert.are_not.equal("immolate", r.main[1].action)
+        assert.equal(0, r.main[1].wait) -- the confirmation did not start another global cooldown
+    end)
+
+    it("comes back when the cast was interrupted", function()
+        W.time = W.time + 1
+        W.casting = nil
+        ns.Events:Fire("UNIT_SPELLCAST_INTERRUPTED", "player", "c", 707)
+        assert.equal("immolate", mainAction())
+    end)
+
+    it("comes back if the game never confirms it", function()
+        W.time = W.time + 2.05
+        W.casting = nil
+        ns.Events:Fire("UNIT_SPELLCAST_STOP", "player", "c", 707)
+        W.time = W.time + 1
+        assert.equal("immolate", mainAction())
+    end)
+end)

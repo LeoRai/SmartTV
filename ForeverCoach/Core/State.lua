@@ -201,14 +201,17 @@ function State:Refresh(now)
     p.in_combat = combat and true or false
     p.moving = API.IsMoving() or false
 
-    -- Current cast: the client first, own tracking second.
+    -- Current cast: the client first, own tracking second. A cast that just finished still counts
+    -- until the game confirms it, so its effects are never missing for a moment.
     local castID, castEnd, channel, castStart = API.PlayerCast()
     s.castKey, s.castStart, s.castEnd, s.castChannel = nil, nil, nil, nil
     if castID and def.byId[castID] then
         s.castKey, s.castStart, s.castEnd, s.castChannel = def.byId[castID].key, castStart, castEnd, channel
-    elseif not castID and Timers.cast and Timers.cast.endTime > now then
-        local c = Timers.cast
-        s.castKey, s.castStart, s.castEnd, s.castChannel = c.key, c.startTime, c.endTime, c.channel
+    elseif not castID then
+        local c = Timers:Pending(now)
+        if c then
+            s.castKey, s.castStart, s.castEnd, s.castChannel = c.key, c.startTime, math.max(c.endTime, now), c.channel
+        end
     end
     p.casting = s.castKey ~= nil
 
