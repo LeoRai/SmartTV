@@ -83,3 +83,46 @@ describe("Forever as found at stage 0", function()
         assert.equal(3, s.trainer)
     end)
 end)
+
+describe("Health gates in Forever", function()
+    local ns, W
+    before_each(function()
+        ns, W = addon.load()
+        addon.learnUpTo(ns, W, 20)
+        W.pet = { hp = 100, hpMax = 100, family = "Демон Бездны" }
+        W.target = { hp = 100, hpMax = 100, enemy = true }
+        W.items[5512] = 1 -- Minor Healthstone
+        W.player.combat = true
+        W.secret = { ["player.hp"] = true, ["target.hp"] = true, ["pet.hp"] = true, ["player.mana"] = true }
+        W.auraError = true
+        W.petKnown[7812] = true -- Sacrifice
+        ns.Timers:DetectPet()
+        addon.rescan(ns)
+    end)
+
+    it("hands the hidden-health hints to the display instead of guessing", function()
+        local r = addon.compute(ns, W)
+        assert.are_not.equal("drain_soul", r.main[1].action)
+        assert.equal("drain_soul", r.gatedMain.action)
+        assert.equal("target", r.gatedMain.gate.unit)
+        assert.equal(0.2, r.gatedMain.threshold)
+        local actions = {}
+        for i, g in ipairs(r.gatedDefense) do actions[i] = g.action end
+        assert.same({ "healthstone", "sacrifice", "health_funnel" }, actions)
+        assert.equal(0.35, r.gatedDefense[1].threshold)
+        assert.is_false(r.hasDefense)
+    end)
+
+    it("keeps Drain Soul out once enough shards are kept", function()
+        W.items[6265] = 5
+        addon.rescan(ns)
+        local r = addon.compute(ns, W)
+        assert.is_nil(r.gatedMain)
+    end)
+
+    it("binds the gated icons to the client's health curve", function()
+        local r, s = addon.compute(ns, W)
+        ns.HUD:Render(r, s, W.time)
+        assert.equal(4, W.gateBinds) -- Drain Soul over the main icon, three over the defense slot
+    end)
+end)

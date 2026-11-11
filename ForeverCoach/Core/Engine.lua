@@ -9,6 +9,12 @@
 -- nothing in range fits (the icon is tinted red then).
 --
 -- Forecast: the main icon plus up to 3 next ones (settings: next icons 0..3).
+-- Health gates (stage 0: Forever hides every health value from addons, but lets the client show
+-- or hide a widget by it): a line with gate = { unit = "player" | "target" | "pet", below = N or
+-- "opt key" } holds only while that unit's health is at or below the threshold. When the health is
+-- readable the engine checks it like any condition. When it is hidden, the line leaves the normal
+-- choice and comes back as a gated hint (result.gatedMain, result.gatedDefense): the HUD lays it
+-- over its slot and the client shows it only below the threshold (UI/HUD.lua, API.BindHealthGate).
 -- Rows: every profile has main (the big icon and the next ones), defense (left slot) and
 -- cooldown (right slot) lists, plus prep (the out-of-combat preparation line).
 local ADDON, ns = ...
@@ -189,6 +195,16 @@ local function compileLine(def, row, i, entry, errors)
         errors[#errors + 1] = string.format("%s #%d (%s): %s", row, i, action, err)
         return nil
     end
+    if entry.gate then
+        local g = entry.gate
+        local unitOk = g.unit == "player" or g.unit == "target" or g.unit == "pet"
+        local belowOk = type(g.below) == "number" or OPTS[g.below]
+        if not unitOk or not belowOk then
+            errors[#errors + 1] = string.format("%s #%d (%s): bad gate (unit player/target/pet, below = number or opt key)", row, i, action)
+            return nil
+        end
+        line.gate = { unit = g.unit, below = g.below, key = g.unit .. ":" .. tostring(g.below) }
+    end
     line.fn, line.paths = fn, paths
     line.pathFns = {}
     for _, path in ipairs(paths or {}) do
@@ -299,12 +315,40 @@ local function available(ctx, line, realTime)
     return true, false
 end
 
-local function pick(ctx, lines, realTime, allowOutOfRange)
+-- Health gates --------------------------------------------------------------
+
+-- Threshold in percent: a number or a setting (opt.hp, opt.pet_hp).
+local function gateThreshold(s, gate)
+    if type(gate.below) == "number" then return gate.below end
+    return s.opt[gate.below] or 0
+end
+Engine.GateThreshold = gateThreshold
+
+local function gateHidden(s, gate) return s.hidden[gate.unit .. ".hp_pct"] == true end
+
+local function gateOpen(s, gate)
+    local holder = s[gate.unit]
+    local pct = holder and holder.hp_pct
+    return pct ~= nil and pct <= gateThreshold(s, gate)
+end
+
+-- First line that is available and whose condition holds. Lines behind a hidden health gate are
+-- not chosen; with gatedOut they are collected there instead (first one per gate).
+local function pick(ctx, lines, realTime, allowOutOfRange, gatedOut)
+    local s = ctx.s
     for i = 1, #lines do
         local line = lines[i]
         local ok, outOfRange = available(ctx, line, realTime)
-        if ok and (allowOutOfRange or not outOfRange) and truthy(line.fn(ctx)) then
-            return line, outOfRange
+        if ok and (allowOutOfRange or not outOfRange) then
+            local gate = line.gate
+            if gate and gateHidden(s, gate) then
+                if gatedOut and not gatedOut[gate.key] and truthy(line.fn(ctx)) then
+                    gatedOut[gate.key] = true
+                    gatedOut[#gatedOut + 1] = line
+                end
+            elseif (not gate or gateOpen(s, gate)) and truthy(line.fn(ctx)) then
+                return line, outOfRange
+            end
         end
     end
     return nil
@@ -324,11 +368,13 @@ local function fill(rec, ctx, line, outOfRange)
     rec.outOfRange = outOfRange or false
     rec.noMana = line.kind == "spell" and s.noMana[line.action] == true or false
     rec.glow = line.glow or false
+    rec.gate = line.gate
+    rec.threshold = line.gate and gateThreshold(s, line.gate) / 100 or nil
     return rec
 end
 
-local function pickRow(ctx, lines)
-    local line, outOfRange = pick(ctx, lines, true, false)
+local function pickRow(ctx, lines, gatedOut)
+    local line, outOfRange = pick(ctx, lines, true, false, gatedOut)
     if not line then line, outOfRange = pick(ctx, lines, true, true) end
     return line, outOfRange
 end
@@ -337,10 +383,14 @@ end
 -- depth: how many main icons (1 + next icons). The result table is reused between calls.
 function Engine:Recommend(s, prepared, depth)
     self.ctx = self.ctx or newContext()
-    self.result = self.result or { main = {}, recs = {}, defense = {}, cooldown = {} }
+    self.result = self.result or { main = {}, recs = {}, defense = {}, cooldown = {},
+                                   gatedDefense = {}, gatedRecs = {}, gatedMainRec = {} }
+    self.gatedLines = self.gatedLines or {}
     local ctx, r = resetContext(self.ctx, s), self.result
     r.mainCount, r.hasDefense, r.hasCooldown, r.prep, r.prepValue, r.prepPlace, r.aoe = 0, false, false, nil, nil, nil, false
+    r.gatedMain = nil
     ns.wipe(r.main)
+    ns.wipe(r.gatedDefense)
     r.prepared = prepared
     if not prepared then return r end
 
@@ -353,15 +403,22 @@ function Engine:Recommend(s, prepared, depth)
     if s.gcdEnd > ctx.t then ctx.t = s.gcdEnd end
 
     -- Side slots are judged on the real state, before any simulated step.
-    local line, oor = pickRow(ctx, prepared.defense)
+    local gated = ns.wipe(self.gatedLines)
+    local line, oor = pickRow(ctx, prepared.defense, gated)
     if line then r.hasDefense = true; fill(r.defense, ctx, line, oor) end
+    for i, g in ipairs(gated) do
+        r.gatedRecs[i] = r.gatedRecs[i] or {}
+        r.gatedDefense[i] = fill(r.gatedRecs[i], ctx, g, false)
+    end
     line, oor = pickRow(ctx, prepared.cooldown)
     if line then r.hasCooldown = true; fill(r.cooldown, ctx, line, oor) end
 
     depth = depth or 2
     for i = 1, depth do
         if i == 1 then
-            line, oor = pickRow(ctx, prepared.main)
+            gated = ns.wipe(self.gatedLines)
+            line, oor = pickRow(ctx, prepared.main, gated)
+            if gated[1] then r.gatedMain = fill(r.gatedMainRec, ctx, gated[1], false) end
         else
             line, oor = pick(ctx, prepared.main, false, true)
         end

@@ -12,7 +12,8 @@ ns.Data:DefineProfile("WARLOCK", function()
         talents = { nightfall = 1, siphon_life = 1 }, -- key talents of the build
 
         main = {
-            { "drain_soul", "target.hp_pct <= 20 & soul_shards < opt.shards", why = "WHY_EXECUTE_SHARD" },
+            -- Health gates (gate = ...): Forever hides health from addons, the client shows these itself.
+            { "drain_soul", "soul_shards < opt.shards", gate = { unit = "target", below = 20 }, why = "WHY_EXECUTE_SHARD" },
             { "shadow_bolt", "buff.shadow_trance.up", why = "WHY_PROC", glow = true },
             { "hellfire", "enemies >= 3 & player.hp_pct > 50", why = "WHY_AOE_HELLFIRE" },
             { "rain_of_fire", "enemies >= 3 & !known.hellfire", why = "WHY_AOE_RAIN" },
@@ -29,11 +30,11 @@ ns.Data:DefineProfile("WARLOCK", function()
         },
 
         defense = {
-            { "healthstone", "player.hp_pct < opt.hp", why = "WHY_HEALTHSTONE" },
-            { "healing_potion", "player.hp_pct < opt.hp & !item.healthstone.ready", why = "WHY_POTION" },
-            { "death_coil", "player.hp_pct < opt.hp", why = "WHY_DEATH_COIL" },
-            { "sacrifice", "pet.hp_pct < opt.pet_hp / 2", why = "WHY_SACRIFICE" },
-            { "health_funnel", "pet.exists & pet.hp_pct < opt.pet_hp & player.hp_pct > 50", why = "WHY_HEALTH_FUNNEL" },
+            { "healthstone", "", gate = { unit = "player", below = "hp" }, why = "WHY_HEALTHSTONE" },
+            { "healing_potion", "!item.healthstone.ready", gate = { unit = "player", below = "hp" }, why = "WHY_POTION" },
+            { "death_coil", "", gate = { unit = "player", below = "hp" }, why = "WHY_DEATH_COIL" },
+            { "sacrifice", "", gate = { unit = "pet", below = 20 }, why = "WHY_SACRIFICE" },
+            { "health_funnel", "pet.exists & player.hp_pct > 50", gate = { unit = "pet", below = "pet_hp" }, why = "WHY_HEALTH_FUNNEL" },
             { "howl_of_terror", "enemies >= 3", why = "WHY_HOWL" },
             { "fear", "enemies = 2 & last.fear > 15 & !target.player", why = "WHY_FEAR_SECOND" },
         },

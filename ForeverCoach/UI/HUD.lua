@@ -228,6 +228,20 @@ function HUD:Create()
     self.defense = createIcon(frame, false)
     self.cooldown = createIcon(frame, false)
 
+    -- Health-gated hints laid over their slots: the client shows them only below the threshold.
+    -- Not hoverable (an invisible icon must not catch the mouse).
+    self.mainGate = createIcon(frame, false)
+    self.mainGate:SetAllPoints(self.main)
+    self.mainGate:SetFrameLevel(self.main:GetFrameLevel() + 6)
+    self.defenseGates = {}
+    for i = 1, 3 do
+        local g = createIcon(frame, false)
+        g:SetAllPoints(self.defense)
+        g:SetFrameLevel(self.defense:GetFrameLevel() + 12 - i * 3) -- the first (most important) on top
+        self.defenseGates[i] = g
+    end
+    for _, g in ipairs({ self.mainGate, unpack(self.defenseGates) }) do g:EnableMouse(false) end
+
     self.aoe = createPill(frame)
     W.Box(self.aoe, C.window, C.aoe, 1, 0)
     self.aoe.text:SetTextColor(C.aoeText[1], C.aoeText[2], C.aoeText[3], 1)
@@ -261,6 +275,8 @@ function HUD:ApplySettings()
     local main, small, side = db.iconSize, px(36), px(40)
     frame:SetSize(main + 8, main + 8)
     sizeIcon(self.main, main, math.max(10, px(13)))
+    sizeIcon(self.mainGate, main, math.max(10, px(13)))
+    for i = 1, 3 do sizeIcon(self.defenseGates[i], side, math.max(9, px(11))) end
     for i = 1, 3 do sizeIcon(self.next[i], small, math.max(9, px(11))) end
     sizeIcon(self.defense, side, math.max(9, px(11)))
     sizeIcon(self.cooldown, side, math.max(9, px(11)))
@@ -328,7 +344,25 @@ function HUD:ShowPrep(r, centered)
     p:Show()
 end
 
+-- Show a health-gated hint over its slot; the client decides the visibility from hidden health.
+local function showGate(f, rec, color)
+    if not rec then
+        f:Hide()
+        return
+    end
+    setIcon(f, rec)
+    setRing(f, color, 0.5, true)
+    f:Show()
+    if not API.BindHealthGate(f, rec.gate.unit, rec.threshold) then f:SetAlpha(0) end
+end
+
+local function hideGates(self)
+    self.mainGate:Hide()
+    for i = 1, 3 do self.defenseGates[i]:Hide() end
+end
+
 local function hideAll(self)
+    hideGates(self)
     self.main.rec = nil
     self.main:Hide()
     for i = 1, 3 do self.next[i].rec = nil; self.next[i]:Hide() end
@@ -352,6 +386,7 @@ function HUD:Render(r, s, now)
     if unlocked then
         local fake = { id = 1, kind = "spell", action = "", wait = 0, at = now }
         textureCache["spell1"] = QUESTION
+        hideGates(self)
         for _, f in ipairs({ self.main, self.defense, self.cooldown }) do setIcon(f, fake); f:Show() end
         for i = 1, 3 do
             local f = self.next[i]
@@ -420,6 +455,9 @@ function HUD:Render(r, s, now)
             self.cooldown:Hide()
             self.cooldown.label:SetText("")
         end
+
+        showGate(self.mainGate, inCombat and r.gatedMain or nil, C.gold)
+        for i = 1, 3 do showGate(self.defenseGates[i], r.gatedDefense[i], C.danger) end
 
         if r.aoe then
             self.aoe.text:SetText(string.format(L.AOE, s.enemies, ns.Plural(s.enemies, L.ENEMY_FORMS)))

@@ -127,6 +127,37 @@ function API.ShowSpellCooldown(cooldown, id)
     return false
 end
 
+-- Health gates: the client shows a widget only while a unit's health is at or below a threshold,
+-- without the addon ever reading the health (stage 0.2: UnitHealthPercent with a curve gives a
+-- secret 0/1 that SetAlpha accepts, in combat too). threshold is 0..1.
+local curves = {}
+local function stepCurve(threshold)
+    local curve = curves[threshold]
+    if curve == nil then
+        curve = false
+        if C_CurveUtil and C_CurveUtil.CreateCurve then
+            local ok, made = pcall(function()
+                local c = C_CurveUtil.CreateCurve()
+                c:AddPoint(0, 1)
+                c:AddPoint(threshold, 1)
+                c:AddPoint(math.min(1, threshold + 0.001), 0)
+                c:AddPoint(1, 0)
+                return c
+            end)
+            if ok then curve = made end
+        end
+        curves[threshold] = curve
+    end
+    return curve or nil
+end
+
+-- Returns false when the client can't do it; the caller then keeps the widget hidden.
+function API.BindHealthGate(frame, unit, threshold)
+    local curve = stepCurve(threshold)
+    if not curve or not UnitHealthPercent then return false end
+    return (pcall(function() frame:SetAlpha(UnitHealthPercent(unit, true, curve)) end))
+end
+
 -- usable, noMana. Either may be nil when hidden.
 function API.SpellUsable(id)
     local usable, noMana
