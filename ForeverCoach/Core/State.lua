@@ -90,7 +90,12 @@ function State:ScanKnown()
         end
         self.talents[key] = rank
     end
+    -- Points per tree: the classic API is gone in Forever; the trait ranks are split into trees
+    -- by the Talents Forever layout when that addon is installed.
     self.treePoints = API.TreePoints()
+    if not self.treePoints and traits and ns.TalentsForever then
+        self.treePoints = ns.TalentsForever.TreePoints(def.token, traits)
+    end
 
     local level = API.UnitLevel("player") or 1
     self.trainer = Data.CountTrainable(def, level, self.knownRank, self.talents)

@@ -52,6 +52,7 @@ L.NO_CLASS_DATA = "No rotation data for your class yet: warlock comes first, oth
 L.DATA_OUTDATED = "Rotation data was made for patch %s, the game is %s: some hints may be out of date."
 L.PROFILE_ACTIVE = "Profile: %s%s"
 L.PROFILE_APPROX = " (approximate)"
+L.TF_CLOSEST = "Closest Talents Forever build: #%d %s %s, %d%% of your points match"
 L.PERF = "Updates: %d, average %.3f ms, max %.3f ms."
 L.LUA_ERROR = "Error in %s: %s"
 L.BLOCKED = "The game blocked an action of the addon: %s. Please send this line to the developer."

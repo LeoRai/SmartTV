@@ -158,6 +158,12 @@ local function dumpState()
     ns.Print("hidden by the client: %s", #hidden > 0 and table.concat(hidden, ", ") or "-")
     local bm = ns.BuildMatcher
     ns.Print(L.PROFILE_ACTIVE, bm.profile and bm.profile.id or "-", bm.approximate and L.PROFILE_APPROX or "")
+    local tree = ns.State.treePoints
+    if tree then ns.Print("talent points: %s", table.concat(tree, "/")) end
+    if bm.popular then
+        ns.Print(L.TF_CLOSEST, bm.popular.rank or 0, table.concat(bm.popular.pts or {}, "/"), tostring(bm.popular.lead),
+            math.floor(bm.similarity * 100 + 0.5))
+    end
     if r and r.main[1] then ns.Print(Engine.Explain(r.main[1], s)) end
     local unavailable = {}
     for event in pairs(Events.unavailable) do unavailable[#unavailable + 1] = event end

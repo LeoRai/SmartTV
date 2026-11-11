@@ -1,7 +1,7 @@
 -- Builds from Talents Forever (author: baldwinbuilds, co-author of ForeverCoach) — the only source of builds.
 -- With the author's permission builds are read directly from the Talents Forever addon in game
--- (stage 2, Integrations/TalentsForever.lua). This table holds the same entries in ForeverCoach's
--- format: what the integration produces, and the fallback for builds pasted as links.
+-- (Integrations/TalentsForever.lua). This table is only the fallback: builds pasted as links when
+-- Talents Forever is not installed (stage 2).
 --
 -- Entry:
 --   {

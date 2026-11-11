@@ -7,7 +7,7 @@
 local ADDON, ns = ...
 local Data, Events, Modes = ns.Data, ns.Events, ns.Modes
 
-local BuildMatcher = { profile = nil, approximate = true, build = "Generic" }
+local BuildMatcher = { profile = nil, approximate = true, build = "Generic", popular = nil, similarity = 0 }
 ns.BuildMatcher = BuildMatcher
 
 local MIN_POINTS = 5 -- fewer talent points than this is not a build yet
@@ -77,6 +77,13 @@ function BuildMatcher:Update()
     if not def then return end
     local State = ns.State
     local profile, approximate, build = BuildMatcher.Select(def, Data.profiles, State.treePoints, State.talents, Modes.current)
+    -- The closest popular Talents Forever build of this mode (for the Builds window and /fc state).
+    local TF = ns.TalentsForever
+    if TF and TF.Available() and State.traits then
+        self.popular, self.similarity = TF.Closest(def.token, Modes.current, State.traits)
+    else
+        self.popular, self.similarity = nil, 0
+    end
     if profile ~= self.profile or approximate ~= self.approximate then
         self.profile, self.approximate, self.build = profile, approximate, build
         Events:Fire("FC_PROFILE_CHANGED", profile, approximate)

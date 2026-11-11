@@ -8,6 +8,7 @@
 ## X-License: MIT
 ## X-Website: https://github.com/leorai/smarttv
 ## SavedVariablesPerCharacter: ForeverCoachCharDB
+## OptionalDeps: TalentsForeverBook
 ## IconTexture: Interface\Icons\Spell_Shadow_ShadowBolt
 ## AddonCompartmentFunc: ForeverCoach_OnAddonCompartmentClick
 
@@ -33,6 +34,7 @@ Core\Timers.lua
 Core\TTD.lua
 Core\Modes.lua
 Core\State.lua
+Integrations\TalentsForever.lua
 Core\BuildMatcher.lua
 Core\Conditions.lua
 Core\Engine.lua

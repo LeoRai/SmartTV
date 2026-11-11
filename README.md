@@ -97,7 +97,7 @@ luacheck ForeverCoach ForeverCoach_Probe tools tests
 
 ## Соавторы и источники
 
-См. [AUTHORS.md](AUTHORS.md). Соавтор — **Talents Forever** (автор baldwinbuilds): это единственный источник билдов. С разрешения автора ForeverCoach читает билды прямо из аддона Talents Forever, когда оба установлены. Hekili Forever служит эталоном для сверки подсказок, его код не используется.
+См. [AUTHORS.md](AUTHORS.md). Соавтор — **Talents Forever** (автор baldwinbuilds): это единственный источник билдов. С разрешения автора ForeverCoach читает билды прямо из аддона Talents Forever (`TalentsForeverBook`), когда оба установлены: по нему делятся на ветки таланты и находится ближайший популярный билд. Hekili Forever служит эталоном для сверки подсказок, его код не используется.
 
 ## Лицензия
 
