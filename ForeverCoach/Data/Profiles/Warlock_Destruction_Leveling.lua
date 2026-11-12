@@ -2,7 +2,8 @@
 --   Conflagrate (talent, row 4) works only on a target with Immolate and burns it away, unless
 --   Shadow and Flame is full; Bane, Improved Shadow Bolt and Ruin make Shadow Bolt the filler;
 --   Shadowburn (talent, row 3) costs a Soul Shard, so it finishes a dying target only while
---   enough shards are kept (Drain Soul collects them otherwise).
+--   enough shards are kept (Drain Soul collects them otherwise); Shadow and Flame 5/5 refunds that
+--   shard at once, so then any shard is enough.
 -- Incinerate (row 7) replaces Shadow Bolt on a burning target: 25% more damage with Immolate, the
 -- main damage spell once it is there (Icy Veins' WoW Forever Destruction leveling guide).
 -- Not here: Bane of Havoc (a second target's bane: the hint follows one target).
@@ -14,13 +15,15 @@ ns.Data:DefineProfile("WARLOCK", function()
         id = "Warlock_Destruction_Leveling",
         build = "Destruction",
         mode = "leveling",
-        version = "0.1.0", patch = "1.60.1", date = "2026-11-11",
+        version = "0.2.0", patch = "1.60.1", date = "2026-11-12",
         aoe = true,
         talents = { shadowburn = 1 }, -- key talent of the build
 
         main = {
-            { "drain_soul", "soul_shards < opt.shards", gate = { unit = "target", below = 20, warn = 15, takeover = true }, alert = "ALERT_EXECUTE", why = "WHY_EXECUTE_SHARD" },
-            { "shadowburn", "soul_shards >= opt.shards", gate = { unit = "target", below = 20, warn = 15, takeover = true }, alert = "ALERT_EXECUTE", why = "WHY_SHADOWBURN" },
+            -- the three finishers exclude each other: one icon for a dying target
+            { "shadowburn", "talent.shadow_and_flame >= 5 & soul_shards > 0", gate = { unit = "target", below = 20, warn = 15, takeover = true }, alert = "ALERT_EXECUTE", why = "WHY_SHADOWBURN_REFUND" },
+            { "drain_soul", "soul_shards < opt.shards & (talent.shadow_and_flame < 5 | soul_shards = 0)", gate = { unit = "target", below = 20, warn = 15, takeover = true }, alert = "ALERT_EXECUTE", why = "WHY_EXECUTE_SHARD" },
+            { "shadowburn", "soul_shards >= opt.shards & talent.shadow_and_flame < 5", gate = { unit = "target", below = 20, warn = 15, takeover = true }, alert = "ALERT_EXECUTE", why = "WHY_SHADOWBURN" },
             { "life_tap", "player.hp_pct > opt.hp", gate = { unit = "player", power = "mana", below = 15, warn = 15 }, alert = "ALERT_LOW_MANA", why = "WHY_LIFE_TAP" },
             { "drain_life", "", gate = { unit = "player", below = 40, warn = 10 }, alert = "ALERT_LOW_HEALTH", why = "WHY_DRAIN_LIFE" },
             { "shadow_bolt", "buff.shadow_trance.up", why = "WHY_PROC", glow = true },

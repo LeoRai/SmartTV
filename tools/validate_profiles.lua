@@ -64,6 +64,11 @@ local function validateClass(problems, token, def)
             check(problems, def.talents and def.talents[b.talent], "%s.buffs.%s: unknown talent '%s'", where, key, b.talent)
         end
     end
+    for key, t in pairs(def.talents or {}) do
+        if t.untracked then
+            check(problems, def.spells[t.untracked], "%s.talents.%s: unknown untracked spell '%s'", where, key, t.untracked)
+        end
+    end
     if def.filler then check(problems, def.spells[def.filler], "%s: unknown filler '%s'", where, def.filler) end
 end
 

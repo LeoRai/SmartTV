@@ -1,4 +1,4 @@
--- Planner (stage 2): trainer summary, what the rotation still needs, level preview, class quests.
+-- Planner (stage 2): trainer summary, what the rotation still needs, the rotation by level, class quests.
 local addon = require("helpers.addon")
 
 describe("Planner", function()
@@ -100,14 +100,7 @@ describe("Planner", function()
         assert.is_true(voidwalker < fearAt)
     end)
 
-    it("previews the levels ahead: what is new and the rotation there", function()
-        assert.same({ 12, 14, 18, 20, 24, 30 }, Planner.PreviewLevels(12))
-        assert.same({ 56, 58, 60 }, Planner.PreviewLevels(56))
-        local new = Planner.NewAt(def, 12, 14, {})
-        local keys = {}
-        for _, it in ipairs(new) do keys[it.key] = it.first end
-        assert.is_true(keys.drain_life)              -- a new spell
-        assert.is_true(keys.curse_of_recklessness)
+    it("plays the rotation at another level with its own engine", function()
         addon.learnUpTo(ns, W, 12)
         W.target = { hp = 100, hpMax = 100, enemy = true }
         W.player.combat = true

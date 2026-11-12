@@ -69,25 +69,47 @@ describe("Builds", function()
         assert.equal("bad_code", why)
     end)
 
-    it("orders points for leveling: talents that change the hints as soon as the tree allows", function()
+    it("orders points for leveling: talents that change the build's hints as soon as the tree allows", function()
         local layout = ns.TalentsForever.Layout("WARLOCK")
-        local keys = Builds.KeyTalentIds(ns.Data.class)
+        local def = ns.Data.class
+        local profiles = ns.Data.profiles
         local function ids(order)
             local out = {}
             for i, o in ipairs(order) do out[i] = o.talent.spell end
             return out
         end
+        -- the build's profile is its lead tree's
+        local affliction = { [IC] = 5, [NF] = 2, [SL] = 1, [DS] = 1, [FD] = 1, [SB] = 1 }
+        assert.equal("Warlock_Affliction_Leveling", Builds.ProfileFor(def, affliction).id)
+        assert.equal("Warlock_Demonology_Leveling", Builds.ProfileFor(def, { [DS] = 1, [FD] = 1, [1293695] = 3 }).id)
+        assert.equal("Warlock_Generic_Leveling", Builds.ProfileFor(def, { [SB] = 1 }).id) -- under 5 points: no build yet
+        local keys = Builds.KeyTalentIds(def, profiles.Warlock_Affliction_Leveling)
         -- Nightfall needs 5 points in the row above: Improved Corruption fills it, then Nightfall,
         -- then Siphon Life (its prerequisite full)
         assert.same({ IC, IC, IC, IC, IC, NF, NF, SL }, ids(Builds.LevelingOrder(layout, { [IC] = 5, [NF] = 2, [SL] = 1 }, keys)))
-        -- a talent the profiles use in another tree comes in as soon as it is open (Shadowburn, here
-        -- row 1); Demonic Sacrifice and Fel Domination change no hint: they fill in after
-        local order = ids(Builds.LevelingOrder(layout, { [IC] = 5, [NF] = 2, [SL] = 1, [DS] = 1, [FD] = 1, [SB] = 1 }, keys))
-        assert.same({ SB, IC, IC, IC, IC, IC, NF, NF, SL, DS, FD }, order)
-        assert.is_true(keys[NF] and keys[SL] and keys[SB] and true or false)
+        -- Shadowburn changes no Affliction hint: in an Affliction build it fills in after the lead tree
+        assert.same({ IC, IC, IC, IC, IC, NF, NF, SL, DS, FD, SB }, ids(Builds.LevelingOrder(layout, affliction, keys)))
+        assert.equal(1, keys[NF])
+        assert.equal(1, keys[SL])
+        assert.is_nil(keys[SB])
         assert.is_nil(keys[DS])
+        -- Destruction's hints use Shadowburn: there it comes as soon as it is open
+        local destro = Builds.KeyTalentIds(def, profiles.Warlock_Destruction_Leveling)
+        assert.equal(1, destro[SB])
+        assert.same({ SB, IC, IC, IC, IC, IC, NF, NF, SL, DS, FD }, ids(Builds.LevelingOrder(layout, affliction, destro)))
+        -- a condition's rank: Shadow and Flame keeps Immolate and refunds Shadowburn's shard at 5/5
+        assert.equal(5, destro[426316])
+        -- without a profile: every profile of the class
+        local all = Builds.KeyTalentIds(def)
+        assert.is_true(all[NF] and all[SB] and true or false)
         -- Siphon Life before Nightfall is full cannot be placed: it waits for its prerequisite
         assert.equal(6, #Builds.LevelingOrder(layout, { [IC] = 5, [NF] = 1, [SL] = 1 }, keys))
+    end)
+
+    it("reads the talents a condition needs, with the rank", function()
+        local needs = ns.Data.TalentNeeds("talent.a > 0 & talent.b >= 5 & talent.c < 5 & !talent.d & talent.e | talent.f = 2")
+        assert.same({ { talent = "a", rank = 1 }, { talent = "b", rank = 5 }, { talent = "e", rank = 1 }, { talent = "f", rank = 2 } }, needs)
+        assert.same({}, ns.Data.TalentNeeds(nil))
     end)
 
     it("compares the player's talents with a build and finds the next point", function()

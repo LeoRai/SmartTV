@@ -3,10 +3,10 @@
 --
 -- STATUS: checked against the stage 0 dump (Forever 1.60.1 build 70888, level 12, Undercity
 -- trainer): every trainer rank from level 14 to 60 has the ID, level and price below.
--- Forever changes found there: Conflagrate is a trainer spell from 32 (new rank 1), Incinerate
--- is new at 50, Curse of the Elements has new IDs, Dark Pact is gone. Ranks below level 12
--- were already learned and match the spellbook. Demon abilities other than the Voidwalker's
--- are still unverified.
+-- Forever changes found there: the trainer sells Conflagrate from 32 and Incinerate from 50 (their
+-- next ranks: rank 1 of each is a talent, Talents Forever data), Curse of the Elements has new IDs,
+-- Dark Pact is gone. Ranks below level 12 were already learned and match the spellbook. Demon
+-- abilities other than the Voidwalker's are still unverified.
 local ADDON, ns = ...
 
 ns.Data:DefineClass("WARLOCK", function()
@@ -230,7 +230,10 @@ ns.Data:DefineClass("WARLOCK", function()
             incinerate = { ids = { 412758 }, tree = 3 },
             wrack = { ids = { 1316697 }, tree = 1 },
             demonic_brand = { ids = { 1293695 }, tree = 2 },
-            decimation = { ids = { 440870 }, tree = 2 },
+            -- untracked: changes how the build plays, but the hints do not follow it (the planner names it
+            -- from the level its spell comes): Soul Fire on a target below 35% (Talents Forever text);
+            -- target health is hidden in Forever, so it waits for an in-game check of the game's highlight
+            decimation = { ids = { 440870 }, tree = 2, untracked = "soul_fire" },
         },
 
         -- Items: ids from best to worst; the best one in the bags is used.

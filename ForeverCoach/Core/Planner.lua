@@ -4,7 +4,8 @@
 --   quest    comes from a class quest (now: the level is there; later: not yet)
 --   nobar    learned, but not on the action bars
 --   level    opens at a later level
--- plus the trainer summary, class quests and a preview of the rotation at another level.
+-- plus the trainer summary, class quests and how the build's rotation develops level by level
+-- (Planner.Evolution).
 local ADDON, ns = ...
 local API, Data, Events, L = ns.API, ns.Data, ns.Events, ns.L
 
@@ -14,7 +15,6 @@ ns.Planner = Planner
 -- What to do now first (buy, spend a point, take a quest, put on the bars), then what comes later.
 Planner.ORDER = { trainer = 1, talent = 2, quest = 3, nobar = 4, level = 5, questLater = 6 }
 function Planner.Rank(item) return Planner.ORDER[item.later and "questLater" or item.status] end
-Planner.PREVIEW_STEPS = { 0, 2, 6, 8, 12, 18 } -- levels shown in the preview, from the current one
 
 local function srcOf(sp, r) return r[3] or sp.source end
 
@@ -179,37 +179,13 @@ function Planner.Needs(def, profile, s, level, onBars, nextTalent, buildTalents)
     return unique
 end
 
--- Levels offered in the preview: the current one and a few ahead.
-function Planner.PreviewLevels(level)
-    local out = {}
-    for _, step in ipairs(Planner.PREVIEW_STEPS) do
-        local l = math.min(60, level + step)
-        if out[#out] ~= l then out[#out + 1] = l end
-    end
-    return out
-end
-
--- Ranks and spells that appear between the current level (exclusive) and `at` (inclusive).
-function Planner.NewAt(def, level, at, talents)
-    local out = {}
-    for key, sp in pairs(def.spells) do
-        for i, r in ipairs(sp.ranks) do
-            local src = srcOf(sp, r)
-            if r[2] > level and r[2] <= at and src ~= "book" and src ~= "talent" and not sp.pet
-                and (not sp.talent or (talents[sp.talent] or 0) > 0) then
-                out[#out + 1] = { key = key, rank = i, id = r[1], level = r[2], first = i == 1 }
-            end
-        end
-    end
-    table.sort(out, function(a, b) return a.level < b.level or (a.level == b.level and a.key < b.key) end)
-    return out
-end
-
 -- The chosen build's talent points from now up to level `at`, in the order the site places
--- them while leveling (Builds.LevelingOrder: rotation talents first), skipping the points the player
--- already has. By talent, in order:
--- { { spellID, name, from, to, max, level (when it reaches `to`), now }, ... }, and the number
--- of points. unspent: free points from the client (nil: counted from the level).
+-- them while leveling (Builds.LevelingOrder: the talents of the build's hints first), skipping the
+-- points the player already has. By talent, in order:
+-- { { spellID, name, from, to, max, first (its first point), level (when it reaches `to`), now,
+--     key (the rank from which it changes the hints, nil: it does not), works (the level it gets
+--     there; nil: not by `at`), talent (our key in def.talents) }, ... }, and the number of points.
+-- unspent: free points from the client (nil: counted from the level).
 Planner.MAX_POINTS = 51
 function Planner.TalentsAt(def, buildRanks, playerRanks, level, at, unspent)
     local TF = ns.TalentsForever
@@ -219,8 +195,11 @@ function Planner.TalentsAt(def, buildRanks, playerRanks, level, at, unspent)
     local spent = 0
     for _, r in pairs(playerRanks) do spent = spent + r end
     if unspent == nil then unspent = math.max(0, level - 9 - spent) end
+    local ourKey = {}
+    for key, t in pairs(def.talents or {}) do ourKey[t.ids[1]] = key end
+    local keys = ns.Builds.KeyTalentIds(def, ns.Builds.ProfileFor(def, buildRanks))
     local counted, byId, out, points = {}, {}, {}, 0
-    for _, o in ipairs(ns.Builds.LevelingOrder(layout, buildRanks, ns.Builds.KeyTalentIds(def))) do
+    for _, o in ipairs(ns.Builds.LevelingOrder(layout, buildRanks, keys)) do
         local t = o.talent
         local id = t.spell
         counted[id] = (counted[id] or 0) + 1
@@ -231,28 +210,32 @@ function Planner.TalentsAt(def, buildRanks, playerRanks, level, at, unspent)
             local e = byId[id]
             if not e then
                 e = { spellID = id, name = API.SpellName(id) or t.name, from = playerRanks[id] or 0, max = t.max or 1,
-                      first = pointLevel, key = o.key }
+                      first = pointLevel, key = o.key, talent = ourKey[id] }
                 byId[id] = e
                 out[#out + 1] = e
             end
             e.to, e.level, e.now = counted[id], pointLevel, pointLevel <= level
+            e.ranks = e.ranks or {}
+            e.ranks[counted[id]] = pointLevel
+            if e.key and not e.works and e.from < e.key and counted[id] >= e.key then e.works = pointLevel end
         end
     end
     return out, points
 end
 
--- The level at which each of our talent keys gets its first point in the plan (now: `level`).
-local function talentLevels(def, current, plan, level)
-    local out = {}
-    for key, rank in pairs(current or {}) do
-        if rank > 0 then out[key] = level end
-    end
+-- The level from which one of our talent keys has `rank` (default 1) with the build's plan:
+-- `level` when the player has it already, nil when the plan never gets there.
+local function talentLevels(current, plan, level)
+    local byKey = {}
     for _, e in ipairs(plan or {}) do
-        for key, t in pairs(def.talents or {}) do
-            if t.ids[1] == e.spellID and not out[key] then out[key] = e.first end
-        end
+        if e.talent then byKey[e.talent] = e end
     end
-    return out
+    return function(key, rank)
+        rank = rank or 1
+        if ((current or {})[key] or 0) >= rank then return level end
+        local e = byKey[key]
+        return e and e.ranks and e.ranks[rank] or nil
+    end
 end
 
 -- A profile compiled once (the update loop's cache).
@@ -292,13 +275,20 @@ local function kindOf(entry, row, sp)
 end
 Planner.KINDS = { "execute", "health", "mana", "aoe", "proc", "strong", "pet", "second" }
 
+-- The free talent points the client reports (nil: counted from the level).
+local function unspentPoints(def)
+    local TF = ns.TalentsForever
+    return TF and API.TalentPoints(TF.TreeID(def.token))
+end
+
 -- Every line of a profile with the level from which this build can use it:
 -- { key, id, row, kind, level } (level nil: never for this build). A spell comes at its first
--- rank's level (trainer data); a talent's spell, a line whose condition needs a talent
--- (talent.x > 0) or a proc when the build's plan takes that talent; what the player knows now, now.
+-- rank's level (trainer data); a talent's spell, a line whose condition needs a talent (at the rank
+-- it asks: talent.x >= 5, Data.TalentNeeds) or a proc when the build's plan gets there; what the
+-- player knows now, now.
 function Planner.Lines(def, profile, s, level, buildRanks)
-    local plan = buildRanks and Planner.TalentsAt(def, buildRanks, ns.State.traits or {}, level, 60) or {}
-    local talentAt = talentLevels(def, s.talents, plan, level)
+    local plan = buildRanks and Planner.TalentsAt(def, buildRanks, ns.State.traits or {}, level, 60, unspentPoints(def)) or {}
+    local talentAt = talentLevels(s.talents, plan, level)
     local out = {}
     for _, row in ipairs({ "main", "defense", "cooldown" }) do
         for _, entry in ipairs(profile and profile[row] or {}) do
@@ -312,17 +302,18 @@ function Planner.Lines(def, profile, s, level, buildRanks)
                     local first = sp.ranks[1]
                     at = first[2]
                     if sp.talent then
-                        local t = talentAt[sp.talent]
+                        local t = talentAt(sp.talent)
                         at = t and ((first[3] or sp.source) == "talent" and t or math.max(at, t)) or nil
                     end
                 end
-                for t in tostring(entry[2] or ""):gmatch("talent%.([%w_]+)") do
-                    at = at and talentAt[t] and math.max(at, talentAt[t]) or nil
+                for _, need in ipairs(Data.TalentNeeds(entry[2])) do
+                    local t = talentAt(need.talent, need.rank)
+                    at = at and t and math.max(at, t) or nil
                 end
                 if entry.glow then
                     -- a proc comes with the talent that gives it
                     for _, b in pairs(def.buffs or {}) do
-                        if b.glow == key and b.talent then at = talentAt[b.talent] end
+                        if b.glow == key and b.talent then at = talentAt(b.talent) end
                     end
                 end
                 out[#out + 1] = { key = key, id = s.known[key] or sp.ranks[1][1], row = row,
@@ -334,13 +325,20 @@ function Planner.Lines(def, profile, s, level, buildRanks)
 end
 
 -- What joins a build's rotation later, and at which level: { { key, id, level, kind } } sorted by
--- level, one per spell (its first line), only what the player cannot use yet.
+-- level, one per spell (its earliest line), only what the player cannot use yet.
 function Planner.Upcoming(def, profile, s, level, buildRanks)
-    local out, seen = {}, {}
+    local earliest, order = {}, {}
     for _, l in ipairs(Planner.Lines(def, profile, s, level, buildRanks)) do
         local id = l.kind == "proc" and ("proc:" .. l.key) or l.key
-        if l.level and l.level > level and not seen[id] then
-            seen[id] = true
+        if l.level then
+            if not earliest[id] then order[#order + 1] = id end
+            if not earliest[id] or l.level < earliest[id].level then earliest[id] = l end
+        end
+    end
+    local out = {}
+    for _, id in ipairs(order) do
+        local l = earliest[id]
+        if l.level > level then
             out[#out + 1] = { key = id, id = l.id, level = l.level, kind = l.kind, proc = l.kind == "proc" or nil }
         end
     end
@@ -369,44 +367,175 @@ function Planner.Situational(def, profile, s, level, at, buildRanks)
     return out
 end
 
--- Levels worth a look for a build: now, the levels where its hints change (a spell or a talent
--- joins), and 60; round levels fill the rest. At most `count`.
-function Planner.Milestones(def, profile, s, level, buildRanks, count)
-    count = count or 6
-    if level >= 60 then return { 60 } end
-    local set = {}
-    for _, u in ipairs(Planner.Upcoming(def, profile, s, level, buildRanks)) do set[u.level] = true end
-    if buildRanks then
-        for _, e in ipairs(Planner.TalentsAt(def, buildRanks, ns.State.traits or {}, level, 60)) do
-            if e.key and e.first > level then set[e.first] = true end
-        end
-    end
-    local changes = {}
-    for l in pairs(set) do
-        if l > level and l < 60 then changes[#changes + 1] = l end
-    end
-    table.sort(changes)
-    local out, have = { level }, { [level] = true, [60] = true }
-    for _, l in ipairs(changes) do
-        if #out >= count - 1 then break end
-        out[#out + 1] = l
-        have[l] = true
-    end
-    for _, l in ipairs({ 40, 30, 50, 20 }) do
-        if #out < count - 1 and l > level and not have[l] then
-            out[#out + 1] = l
-            have[l] = true
-        end
-    end
-    table.sort(out)
-    out[#out + 1] = 60
-    return out
-end
-
 -- The rotation on a fresh target with what the player has right now (learned spells, taken
 -- talents): what the live hint will suggest when the next fight starts.
 function Planner.RotationNow(def, prepared, s, depth)
     return Planner.RotationAt(def, prepared, s.player.level, s, depth, nil, true)
+end
+
+-- The rotation on one target as the preview shows it: distinct actions in priority order, then the
+-- proc once the talent that gives it is there. { { key, id, proc } }, `count` at most (nil: all).
+function Planner.RotationList(def, prepared, s, at, talents, actual, count)
+    count = count or 99
+    local procs = {}
+    for _, b in pairs(def.buffs or {}) do
+        local sp = b.glow and def.spells[b.glow]
+        if sp and b.talent and ((talents or s.talents)[b.talent] or 0) > 0 then
+            procs[#procs + 1] = { key = "proc:" .. b.glow, id = s.known[b.glow] or sp.ranks[1][1], proc = true }
+        end
+    end
+    -- the procs always fit: the plain actions make room for them
+    local out = {}
+    for _, r in ipairs(Planner.Distinct(Planner.RotationAt(def, prepared, at, s, 8, talents, actual))) do
+        if #out < count - #procs then out[#out + 1] = { key = r.key, id = r.id } end
+    end
+    for _, p in ipairs(procs) do out[#out + 1] = p end
+    return out
+end
+
+-- How a build's rotation develops as it gets new spells and talents: the steps where its hints
+-- change. Step 1 is now (what the player has); step 2 "after the trainer" when buying what waits
+-- there and spending free points already changes something; then each level where a spell or a
+-- talent joins. Every step: { level, now, trainer, rotation = { {key, id, proc, new} },
+--   talents = { {name, talent, rank, max, shown, untracked} } (start changing the hints here, at that
+--     rank; shown: its own spell is among the changes of the step; untracked: changes the play, not
+--     the hints),
+--   replaced = { {new, old} }, added = { {key, id, proc} },
+--   removed = { {key, id} }, situations = { {kind, spells = { {key, id} }} } (new ones) }.
+-- The rotation is the order on one target with the demon out; situations are the lines for a
+-- finisher, low health or mana, 3+ enemies, a proc, a strong target... (Planner.Situational).
+function Planner.Evolution(def, profile, prepared, s, level, buildRanks, maxSteps)
+    maxSteps = maxSteps or math.huge
+    -- whole rotations (no count): what changes is judged on all of it, the window shows the start
+    local traits = ns.State.traits or {}
+    local unspent = unspentPoints(def)
+    local plan = buildRanks and Planner.TalentsAt(def, buildRanks, traits, level, 60, unspent) or {}
+
+    -- the levels where something may change: a line of the profile or a talent of the plan
+    local set = {}
+    for _, l in ipairs(Planner.Lines(def, profile, s, level, buildRanks)) do
+        if l.level and l.level > level then set[l.level] = true end
+    end
+    for _, e in ipairs(plan) do
+        if e.works and e.works > level then set[e.works] = true end
+    end
+    -- talents that change how the build plays but not the hints (def.talents[x].untracked: Decimation
+    -- and Soul Fire): named from the level both the talent and its spell are there
+    local untracked = {}
+    for _, e in ipairs(plan) do
+        local t = e.talent and def.talents[e.talent]
+        local sp = t and t.untracked and def.spells[t.untracked]
+        if sp then
+            local at = math.max(e.first, sp.ranks[1][2])
+            untracked[#untracked + 1] = { at = at, name = e.name, talent = e.talent }
+            if at > level then set[at] = true end
+        end
+    end
+    local levels = {}
+    for l in pairs(set) do levels[#levels + 1] = l end
+    table.sort(levels)
+
+    local function talentsAt(at)
+        if not buildRanks then return nil end
+        return Planner.TalentKeysAt(def, s.talents, Planner.TalentsAt(def, buildRanks, traits, level, at, unspent))
+    end
+    local function situationsAt(at)
+        local out = {}
+        for _, g in ipairs(Planner.Situational(def, profile, s, level, at, buildRanks)) do
+            for _, sp in ipairs(g.spells) do out[g.kind .. ":" .. sp.key] = { kind = g.kind, key = sp.key, id = sp.id } end
+        end
+        return out
+    end
+    local function keysOf(list)
+        local out = {}
+        for _, r in ipairs(list) do out[r.key] = r end
+        return out
+    end
+
+    local steps = {}
+    local prevRot = Planner.RotationList(def, prepared, s, level, nil, true)
+    local prevSit = {}
+    -- now: what is learned; the situations only those the player can use already
+    for k, v in pairs(situationsAt(level)) do
+        if not v.key:find("^proc:") and (s.known[v.key] or v.kind == "proc") then prevSit[k] = v end
+    end
+    local first = { level = level, now = true, rotation = prevRot, situations = {} }
+    local byKind = {}
+    for _, v in pairs(prevSit) do
+        byKind[v.kind] = byKind[v.kind] or {}
+        table.insert(byKind[v.kind], { key = v.key, id = v.id })
+    end
+    for _, kind in ipairs(Planner.KINDS) do
+        if byKind[kind] then first.situations[#first.situations + 1] = { kind = kind, spells = byKind[kind] } end
+    end
+    steps[1] = first
+
+    local prevLevel = level
+    local function step(at, trainer)
+        local talents = talentsAt(at)
+        local rot = Planner.RotationList(def, prepared, s, at, talents, false)
+        local sit = situationsAt(at)
+        local before, after = keysOf(prevRot), keysOf(rot)
+        local added, removed = {}, {}
+        for _, r in ipairs(rot) do
+            r.new = before[r.key] == nil
+            if r.new then added[#added + 1] = r end
+        end
+        for _, r in ipairs(prevRot) do
+            if not after[r.key] then removed[#removed + 1] = r end
+        end
+        local replaced = {}
+        if #added == 1 and #removed == 1 and not added[1].proc and not removed[1].proc then
+            replaced[1] = { new = added[1], old = removed[1] }
+            added, removed = {}, {}
+        end
+        local newSit, byKind2 = {}, {}
+        for k, v in pairs(sit) do
+            if not prevSit[k] and not after[v.key] and v.kind ~= "proc" then
+                byKind2[v.kind] = byKind2[v.kind] or {}
+                table.insert(byKind2[v.kind], { key = v.key, id = v.id })
+            end
+        end
+        for _, kind in ipairs(Planner.KINDS) do
+            if byKind2[kind] then
+                table.sort(byKind2[kind], function(a, b) return a.key < b.key end)
+                newSit[#newSit + 1] = { kind = kind, spells = byKind2[kind] }
+            end
+        end
+        -- the talents that start changing the hints here (at the rank they need: Shadow and Flame 5/5);
+        -- shown = the talent's own spell is among this step's changes (Siphon Life, Wrack...)
+        local changed = {}
+        for _, r in ipairs(added) do changed[r.key] = true end
+        for _, r in ipairs(replaced) do changed[r.new.key] = true end
+        for _, g in ipairs(newSit) do
+            for _, sp in ipairs(g.spells) do changed[sp.key] = true end
+        end
+        local started = {}
+        for _, e in ipairs(plan) do
+            if e.works and ((e.works > prevLevel and e.works <= at) or (trainer and e.works == level)) then
+                local shown = false
+                for key, sp in pairs(def.spells) do
+                    if sp.talent and sp.talent == e.talent and changed[key] then shown = true end
+                end
+                started[#started + 1] = { name = e.name, talent = e.talent, rank = e.key, max = e.max, shown = shown }
+            end
+        end
+        for _, u in ipairs(untracked) do
+            if (u.at > prevLevel and u.at <= at) or (trainer and u.at == level) then
+                started[#started + 1] = { name = u.name, talent = u.talent, untracked = true }
+            end
+        end
+        if #added + #removed + #replaced + #newSit + #started == 0 then return end
+        steps[#steps + 1] = { level = at, trainer = trainer, rotation = rot, talents = started, replaced = replaced,
+                              added = added, removed = removed, situations = newSit }
+        prevRot, prevSit, prevLevel = rot, sit, at
+    end
+    step(level, true) -- buying what waits at the trainer and spending free points
+    for _, at in ipairs(levels) do
+        if #steps >= maxSteps then break end
+        step(at, false)
+    end
+    return steps
 end
 
 -- The distinct actions of a rotation, in order (a sequence repeats the filler).
@@ -450,7 +579,8 @@ function Planner.RotationAt(def, prepared, at, s, depth, talents, actual)
         for i = #sp.ranks, 1, -1 do
             local r = sp.ranks[i]
             local src = srcOf(sp, r)
-            local ok = r[2] <= at and src ~= "book" and not sp.pet
+            -- a talent's own rank comes when the plan takes the talent (its level is only the earliest)
+            local ok = (src == "talent" or r[2] <= at) and src ~= "book" and not sp.pet
             if sp.talent then
                 -- a talent's spell: from the talent on, when the talents for that level have it
                 ok = ok and (talents[sp.talent] or 0) > 0

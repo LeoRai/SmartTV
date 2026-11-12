@@ -32,7 +32,8 @@ describe("Builds window", function()
         assert.equal(8, card.trees[1].pts)
         assert.equal("Saved 453, opened 4,884, 138 similar builds", card.stats)
         assert.equal("All 3 points match the build", card.first.text)
-        assert.equal("Next point at level 13: spell17877", card.second.text) -- Shadowburn: changes the hints, open
+        -- Improved Corruption fills the row for Nightfall (Shadowburn changes no Affliction hint)
+        assert.equal("Next point at level 13: spell17810", card.second.text)
         assert.is_true(#card.rotation >= 3)
         assert.is_false(card.isChosen)
     end)
@@ -95,7 +96,7 @@ describe("Planner window", function()
         addon.compute(ns, W)
     end)
 
-    it("shows the trainer, the needs, the preview and the quests", function()
+    it("shows the trainer, the needs, the rotation by level and the quests", function()
         local m = PW:Model()
         assert.equal(14, m.level)
         assert.matches("^— level 14", m.subtitle)
@@ -106,30 +107,49 @@ describe("Planner window", function()
         assert.equal("At trainer", statuses.drain_life.pill)
         assert.matches("heals you at the enemy's cost", statuses.drain_life.sub)
         assert.equal("Quest, 10", statuses.summon_voidwalker.pill)
-        -- now, the levels where the hints change, 60
-        assert.equal(14, m.levels[1])
-        assert.equal(60, m.levels[#m.levels])
-        assert.equal(20, m.at)
+        -- the rotation by level: now (what is learned), after the trainer, then where the hints change
+        assert.equal(ns.L.P_EVO_NO_BUILD, m.note) -- no build chosen: the current talents only
+        assert.is_true(m.steps[1].now)
+        assert.equal("Now", m.steps[1].label)
+        assert.equal("curse_of_agony", m.steps[1].icons[1].key)
+        assert.matches("^For a situation: spell1120 %(finisher%)", m.steps[1].text)
+        assert.equal("Trainer", m.steps[2].label)
+        assert.equal("+ spell689 (low health)", m.steps[2].text) -- Drain Life waits at the trainer
+        assert.equal("level 20", m.steps[3].label)
+        assert.matches("%+ spell5740 %(3%+ enemies%)", m.steps[3].text) -- Rain of Fire
+        assert.equal("level 60", m.steps[#m.steps].label)
+        for _, st in ipairs(m.steps) do
+            for _, ic in ipairs(st.icons) do assert.are_not.equal("siphon_life", ic.key) end -- no talent of a build
+        end
         assert.equal(4, #m.quests)
         assert.equal("Voidwalker", m.quests[1].name)
         assert.is_false(m.quests[1].done)
     end)
 
-    it("previews another level and draws without errors", function()
-        PW:SetLevel(30)
-        local m = PW:Model()
-        assert.equal(30, m.at)
-        local kinds = {}
-        for _, g in ipairs(m.situational) do kinds[g.kind] = g end
-        assert.is_table(kinds.aoe) -- Rain of Fire from 20, Hellfire from 30
-        assert.is_true(kinds.aoe.icons[1].new)
-        assert.is_table(kinds.strong) -- Curse of the Elements on strong targets from 20
-        assert.matches("^By level 30 the trainer adds", m.trainerAt)
-        PW:SetLevel(99) -- not offered: back to the default
-        assert.equal(20, PW:Model().at)
+    it("draws the steps without errors", function()
         PW:Toggle()
         PW:Draw()
         ns.Commands:Run("plan")
+    end)
+
+    it("folds the steps that do not fit into the last row", function()
+        local Planner = ns.Planner
+        local real = Planner.Evolution
+        Planner.Evolution = function()
+            local steps = { { level = 14, now = true, rotation = {}, situations = {} } }
+            for l = 16, 60, 4 do -- 12 more
+                steps[#steps + 1] = { level = l, rotation = { { key = "x" .. l, id = 686, new = true } }, talents = {},
+                                      replaced = {}, added = { { key = "x" .. l, id = 686 } }, removed = {}, situations = {} }
+            end
+            return steps
+        end
+        local ok, m = pcall(PW.Model, PW)
+        Planner.Evolution = real
+        assert.is_true(ok, m)
+        assert.equal(10, #m.steps)
+        assert.equal("levels 48-60", m.steps[10].label)
+        assert.matches("^%+ spell686; level 52: %+ spell686; level 56: %+ spell686; level 60: %+ spell686$", m.steps[10].text)
+        assert.equal("x60", m.steps[10].icons[1].key) -- the rotation at the end
     end)
 
     it("opens from the trainer line under the hint block", function()
@@ -193,27 +213,81 @@ describe("Planner: the chosen build's plan by level", function()
         assert.equal(1, keys.siphon_life)
     end)
 
-    it("shows the plan in the level preview and plays the rotation with those talents", function()
-        assert.equal(ns.L.P_TALENTS_NO_BUILD, PW:Model().talentNote) -- no build chosen yet
+    it("shows how the chosen build's rotation develops, with the talents it takes", function()
         local list = ns.Builds.List("leveling", W.traits)
         ns.Builds.Choose(list[1]) -- Affliction 8 / 1 / 0: Improved Corruption, Nightfall, Siphon Life, ...
+        W.level = 14
+        addon.rescan(ns)
         local m = PW:Model()
-        PW:SetLevel(m.levels[#m.levels]) -- 60
-        m = PW:Model()
-        assert.is_nil(m.talentNote)
-        -- the talents that change the hints by name, from the level they start working; the rest as a number
-        -- (Improved Corruption 4 and 5 at 13 and 14 fill the row for Nightfall; Demonic Sacrifice last)
-        assert.same({ "spell18094 2/2, from level 15", "spell18265 1/1, from level 17", "3 more points elsewhere" }, m.talents)
-        PW:SetLevel(12) -- the current level: no free point
-        assert.equal(ns.L.P_TALENTS_NONE, PW:Model().talentNote)
-        -- level 30: Siphon Life comes from the build's talent, the preview rotation uses it
+        assert.equal(ns.L.P_EVO_NOTE, m.note)
+        local byLabel = {}
+        for _, st in ipairs(m.steps) do byLabel[st.label] = st end
+        -- two free points at 14 fill Improved Corruption; Nightfall from 15, Siphon Life from 17
+        local nf = byLabel["level 15"]
+        assert.equal("talents: spell18094; + spell705 on proc", nf.text) -- Shadow Bolt, the rank known
+        assert.is_true(nf.icons[#nf.icons].proc)
+        assert.is_true(nf.icons[#nf.icons].new)
+        -- the talent's own spell says it: no "talents" part
+        assert.equal("spell18265 instead of spell707", byLabel["level 17"].text)
+        assert.is_true(byLabel["level 17"].icons[1].new)
+        assert.equal("siphon_life", byLabel["level 17"].icons[1].key)
+        -- the proc stays in the row when the rotation changes
+        local last = byLabel["level 17"].icons[#byLabel["level 17"].icons]
+        assert.is_true(last.proc)
+        assert.is_falsy(last.new)
+        -- level 30: the preview rotation uses Siphon Life from the build's talent
         local def, s = ns.Data.class, ns.State.snapshot
-        local plan = ns.Planner.TalentsAt(def, ns.TalentsForever.Decode("WARLOCK", list[1].code), W.traits, 12, 30)
+        local plan = ns.Planner.TalentsAt(def, ns.TalentsForever.Decode("WARLOCK", list[1].code), W.traits, 14, 30)
         local rot = ns.Planner.RotationAt(def, ns.Loop.current, 30, s, 4, ns.Planner.TalentKeysAt(def, s.talents, plan))
         assert.equal("siphon_life", rot[1].key)
         local without = ns.Planner.RotationAt(def, ns.Loop.current, 30, s, 4)
         for _, r in ipairs(without) do assert.are_not.equal("siphon_life", r.key) end
         PW:Toggle()
         PW:Draw()
+    end)
+
+    it("names what a talent changes when the rotation does not show it, from the rank it needs", function()
+        local d = tf.data()
+        table.insert(d.classes.WARLOCK.trees[3].talents, { name = "Shadow and Flame", max = 5, spell = 426316, row = 1, col = 1 })
+        _G.TalentsForeverBookData = d
+        ns, W = addon.load()
+        PW = ns.PlannerWindow
+        addon.learnUpTo(ns, W, 12)
+        W.level = 14
+        W.traits = { [IC] = 3 }
+        addon.rescan(ns)
+        addon.compute(ns, W)
+        ns.Builds.Choose(ns.Builds.FromLink("warlock/60/--15-12")) -- Shadowburn, Shadow and Flame 5/5
+        assert.equal("Warlock_Destruction_Leveling", ns.BuildMatcher.profile.id)
+        local m = PW:Model()
+        local byLabel = {}
+        for _, st in ipairs(m.steps) do byLabel[st.label] = st end
+        -- Shadowburn now (a free point): its finisher line joins at the trainer step
+        assert.matches("%+ spell17877 %(finisher%)", byLabel["Trainer"].text)
+        -- Shadow and Flame's first point at 14 changes nothing; at 5/5 (level 18) it keeps Immolate
+        assert.is_nil(byLabel["Trainer"].text:find("spell426316", 1, true))
+        assert.equal("talents: spell426316 5/5 — " .. ns.L.P_EVO_EFFECT_shadow_and_flame, byLabel["level 18"].text)
+    end)
+
+    it("names a talent the hints do not follow from the level its spell comes", function()
+        local d = tf.data()
+        table.insert(d.classes.WARLOCK.trees[2].talents, { name = "Decimation", max = 2, spell = 440870, row = 1, col = 1 })
+        _G.TalentsForeverBookData = d
+        ns, W = addon.load()
+        PW = ns.PlannerWindow
+        addon.learnUpTo(ns, W, 12)
+        W.level = 14
+        W.traits = { [IC] = 3 }
+        addon.rescan(ns)
+        addon.compute(ns, W)
+        ns.Builds.Choose(ns.Builds.FromLink("warlock/60/-1132--12")) -- Demonic Brand 3/3, Decimation 2/2
+        local m = PW:Model()
+        local byLabel = {}
+        for _, st in ipairs(m.steps) do byLabel[st.label] = st end
+        -- Decimation is taken early, Soul Fire comes at 48: named there, as not followed by the hints
+        assert.equal("talents: spell440870 — " .. ns.L.P_EVO_EFFECT_decimation, byLabel["level 48"].text)
+        for _, st in ipairs(m.steps) do
+            for _, ic in ipairs(st.icons) do assert.are_not.equal("soul_fire", ic.key) end
+        end
     end)
 end)

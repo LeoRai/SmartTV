@@ -135,6 +135,22 @@ function Data.ConsumedDebuff(sp, talents)
 end
 function Data.Cast(sp, rank) return perRank(sp.cast, rank) or 0 end
 
+-- The talents a profile condition needs, with the rank: { {talent, rank}, ... }.
+-- "talent.x" and "talent.x > 0" need rank 1, "talent.x >= 5" rank 5; "talent.x < 5" and
+-- "!talent.x" need nothing (they hold without the talent).
+function Data.TalentNeeds(cond)
+    local out = {}
+    for pre, t, op, n in (" " .. tostring(cond or "")):gmatch("(.)talent%.([%w_]+)%s*([<>=!~]*)%s*(%d*)") do
+        n = tonumber(n)
+        local rank
+        if op == "" then rank = 1
+        elseif op == ">" and n then rank = n + 1
+        elseif (op == ">=" or op == "=" or op == "==") and n then rank = n end
+        if rank and pre ~= "!" then out[#out + 1] = { talent = t, rank = math.max(1, rank) } end
+    end
+    return out
+end
+
 -- Highest known rank of every spell: out[key] = spellID, outRank[key] = rank index.
 function Data.ResolveKnown(def, isKnown, out, outRank)
     ns.wipe(out)

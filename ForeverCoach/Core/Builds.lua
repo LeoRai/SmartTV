@@ -83,9 +83,9 @@ function Builds.FromLink(text)
 end
 
 -- The order points go into a build while leveling (a build code carries only the final ranks).
--- The talents that change the rotation (the class's talent keys: Nightfall, Siphon Life,
--- Conflagrate...) take their points as soon as the tree allows; the other points fill rows on the
--- way to the next of them, in the tree's own order. The rules of the tree: a row opens with 5
+-- The talents that change the build's hints (keyIds, Builds.KeyTalentIds of its profile: Nightfall,
+-- Siphon Life, Conflagrate...) take their points as soon as the tree allows; the other points fill
+-- rows on the way to the next of them, the lead tree first, in the tree's own order. The rules of the tree: a row opens with 5
 -- points per row above it in that tree, a talent with a prerequisite (req: its index in the tree)
 -- waits until that one is full. Returns { { tree, talent, key = true|nil }, ... } per point.
 function Builds.LevelingOrder(layout, buildRanks, keyIds)
@@ -151,37 +151,59 @@ function Builds.LevelingOrder(layout, buildRanks, keyIds)
     return order
 end
 
--- Spell IDs of the talents that change the hints: those the class's profiles refer to (a spell
--- that needs a talent, talent.x in a condition, the talent behind a proc or behind a kept debuff).
-local keyCache = {}
-function Builds.KeyTalentIds(def)
+-- The profile whose hints a build gets: the one of its lead tree (the tree with most points), as
+-- BuildMatcher picks it for a chosen build. nil without Talents Forever data.
+function Builds.ProfileFor(def, buildRanks)
+    local TF = ns.TalentsForever
+    local pts = TF and def and buildRanks and TF.TreePoints(def.token, buildRanks)
+    if not pts then return nil end
+    local lead = ns.BuildMatcher.DominantTree(pts, def.trees)
+    return (ns.BuildMatcher.Select(def, Data.profiles, pts, {}, ns.Modes.current, lead))
+end
+
+-- The talents that change a profile's hints and the rank they need: { [spellID] = rank }.
+-- A spell that needs a talent, talent.x in a condition ("> 0": rank 1, ">= 5": rank 5), the talent
+-- behind a proc, the talent that keeps a debuff (keepsDebuff.rank). Without a profile: every
+-- profile of the class.
+local keyCache = setmetatable({}, { __mode = "k" })
+function Builds.KeyTalentIds(def, profile)
     if not def then return {} end
-    if keyCache[def] then return keyCache[def] end
+    local cacheKey = profile or def
+    if keyCache[cacheKey] then return keyCache[cacheKey] end
     local keys = {}
-    local function mark(talent)
+    local function mark(talent, rank)
         local t = talent and def.talents and def.talents[talent]
-        if t then keys[t.ids[1]] = true end
+        if t then
+            local id = t.ids[1]
+            rank = math.max(1, rank or 1)
+            keys[id] = keys[id] and math.min(keys[id], rank) or rank
+        end
     end
-    for _, profile in pairs(Data.profiles) do
-        if profile.class == def.token then
-            for _, row in ipairs({ "main", "defense", "cooldown" }) do
-                for _, entry in ipairs(profile[row] or {}) do
-                    local sp = def.spells[entry[1]]
-                    if sp then
-                        mark(sp.talent)
-                        if sp.keepsDebuff then mark(sp.keepsDebuff.talent) end
-                    end
-                    for t in tostring(entry[2] or ""):gmatch("talent%.([%w_]+)") do mark(t) end
-                    if entry.glow then
-                        for _, b in pairs(def.buffs or {}) do
-                            if b.glow == entry[1] then mark(b.talent) end
-                        end
+    local function scan(p)
+        for _, row in ipairs({ "main", "defense", "cooldown" }) do
+            for _, entry in ipairs(p[row] or {}) do
+                local sp = def.spells[entry[1]]
+                if sp then
+                    mark(sp.talent)
+                    if sp.keepsDebuff then mark(sp.keepsDebuff.talent, sp.keepsDebuff.rank) end
+                end
+                for _, need in ipairs(Data.TalentNeeds(entry[2])) do mark(need.talent, need.rank) end
+                if entry.glow then
+                    for _, b in pairs(def.buffs or {}) do
+                        if b.glow == entry[1] then mark(b.talent) end
                     end
                 end
             end
         end
     end
-    keyCache[def] = keys
+    if profile then
+        scan(profile)
+    else
+        for _, p in pairs(Data.profiles) do
+            if p.class == def.token then scan(p) end
+        end
+    end
+    keyCache[cacheKey] = keys
     return keys
 end
 
@@ -204,7 +226,8 @@ function Builds.Compare(buildRanks, playerRanks, level, unspent)
 
     -- Next point: the first one of the leveling order the player does not have yet.
     local counted, best = {}, nil
-    for _, o in ipairs(Builds.LevelingOrder(layout, buildRanks, Builds.KeyTalentIds(def))) do
+    local keys = Builds.KeyTalentIds(def, Builds.ProfileFor(def, buildRanks))
+    for _, o in ipairs(Builds.LevelingOrder(layout, buildRanks, keys)) do
         local id = o.talent.spell
         counted[id] = (counted[id] or 0) + 1
         if counted[id] > (playerRanks[id] or 0) then
