@@ -32,7 +32,7 @@ describe("Builds window", function()
         assert.equal(8, card.trees[1].pts)
         assert.equal("Saved 453, opened 4,884, 138 similar builds", card.stats)
         assert.equal("All 3 points match the build", card.first.text)
-        assert.equal("Next point at level 13: spell17810", card.second.text)
+        assert.equal("Next point at level 13: spell17877", card.second.text) -- Shadowburn: changes the hints, open
         assert.is_true(#card.rotation >= 3)
         assert.is_false(card.isChosen)
     end)
@@ -106,23 +106,27 @@ describe("Planner window", function()
         assert.equal("At trainer", statuses.drain_life.pill)
         assert.matches("heals you at the enemy's cost", statuses.drain_life.sub)
         assert.equal("Quest, 10", statuses.summon_voidwalker.pill)
-        assert.same({ 14, 16, 20, 22, 26, 32 }, m.levels)
-        assert.equal(16, m.at)
+        -- now, the levels where the hints change, 60
+        assert.equal(14, m.levels[1])
+        assert.equal(60, m.levels[#m.levels])
+        assert.equal(20, m.at)
         assert.equal(4, #m.quests)
         assert.equal("Voidwalker", m.quests[1].name)
         assert.is_false(m.quests[1].done)
     end)
 
     it("previews another level and draws without errors", function()
-        PW:SetLevel(20)
+        PW:SetLevel(30)
         local m = PW:Model()
-        assert.equal(20, m.at)
-        local found = false
-        for _, line in ipairs(m.newSpells) do if line:find("spell5740", 1, true) then found = true end end
-        assert.is_true(found) -- Rain of Fire at 20
-        assert.is_true(m.newRanks > 0)
+        assert.equal(30, m.at)
+        local kinds = {}
+        for _, g in ipairs(m.situational) do kinds[g.kind] = g end
+        assert.is_table(kinds.aoe) -- Rain of Fire from 20, Hellfire from 30
+        assert.is_true(kinds.aoe.icons[1].new)
+        assert.is_table(kinds.strong) -- Curse of the Elements on strong targets from 20
+        assert.matches("^By level 30 the trainer adds", m.trainerAt)
         PW:SetLevel(99) -- not offered: back to the default
-        assert.equal(16, PW:Model().at)
+        assert.equal(20, PW:Model().at)
         PW:Toggle()
         PW:Draw()
         ns.Commands:Run("plan")
@@ -193,11 +197,13 @@ describe("Planner: the chosen build's plan by level", function()
         assert.equal(ns.L.P_TALENTS_NO_BUILD, PW:Model().talentNote) -- no build chosen yet
         local list = ns.Builds.List("leveling", W.traits)
         ns.Builds.Choose(list[1]) -- Affliction 8 / 1 / 0: Improved Corruption, Nightfall, Siphon Life, ...
-        PW:SetLevel(18) -- offered at level 12: 12, 14, 18, 20, 24, 30
         local m = PW:Model()
+        PW:SetLevel(m.levels[#m.levels]) -- 60
+        m = PW:Model()
         assert.is_nil(m.talentNote)
-        assert.same({ "spell17810 5/5, by level 14", "spell18094 2/2, by level 16", "spell18265 1/1, by level 17",
-                      "spell18788 1/1, by level 18" }, m.talents)
+        -- the talents that change the hints by name, from the level they start working; the rest as a number
+        -- (Improved Corruption 4 and 5 at 13 and 14 fill the row for Nightfall; Demonic Sacrifice last)
+        assert.same({ "spell18094 2/2, from level 15", "spell18265 1/1, from level 17", "3 more points elsewhere" }, m.talents)
         PW:SetLevel(12) -- the current level: no free point
         assert.equal(ns.L.P_TALENTS_NONE, PW:Model().talentNote)
         -- level 30: Siphon Life comes from the build's talent, the preview rotation uses it

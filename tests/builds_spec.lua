@@ -69,15 +69,25 @@ describe("Builds", function()
         assert.equal("bad_code", why)
     end)
 
-    it("places points like the site: lead tree first, rows open with 5 points, prerequisites full", function()
+    it("orders points for leveling: talents that change the hints as soon as the tree allows", function()
         local layout = ns.TalentsForever.Layout("WARLOCK")
-        local order = Builds.GuessOrder(layout, { [IC] = 5, [NF] = 2, [SL] = 1, [DS] = 1, [FD] = 1, [SB] = 1 })
-        local ids = {}
-        for i, o in ipairs(order) do ids[i] = o.talent.spell end
-        assert.same({ IC, IC, IC, IC, IC, NF, NF, SL, DS, FD, SB }, ids)
-        -- Siphon Life before Nightfall is full cannot be placed: it waits for its prerequisite.
-        order = Builds.GuessOrder(layout, { [IC] = 5, [NF] = 1, [SL] = 1 })
-        assert.equal(6, #order)
+        local keys = Builds.KeyTalentIds(ns.Data.class)
+        local function ids(order)
+            local out = {}
+            for i, o in ipairs(order) do out[i] = o.talent.spell end
+            return out
+        end
+        -- Nightfall needs 5 points in the row above: Improved Corruption fills it, then Nightfall,
+        -- then Siphon Life (its prerequisite full)
+        assert.same({ IC, IC, IC, IC, IC, NF, NF, SL }, ids(Builds.LevelingOrder(layout, { [IC] = 5, [NF] = 2, [SL] = 1 }, keys)))
+        -- a talent the profiles use in another tree comes in as soon as it is open (Shadowburn, here
+        -- row 1); Demonic Sacrifice and Fel Domination change no hint: they fill in after
+        local order = ids(Builds.LevelingOrder(layout, { [IC] = 5, [NF] = 2, [SL] = 1, [DS] = 1, [FD] = 1, [SB] = 1 }, keys))
+        assert.same({ SB, IC, IC, IC, IC, IC, NF, NF, SL, DS, FD }, order)
+        assert.is_true(keys[NF] and keys[SL] and keys[SB] and true or false)
+        assert.is_nil(keys[DS])
+        -- Siphon Life before Nightfall is full cannot be placed: it waits for its prerequisite
+        assert.equal(6, #Builds.LevelingOrder(layout, { [IC] = 5, [NF] = 1, [SL] = 1 }, keys))
     end)
 
     it("compares the player's talents with a build and finds the next point", function()
@@ -86,7 +96,7 @@ describe("Builds", function()
         local c = Builds.Compare(build, { [IC] = 3 }, 12)
         assert.equal(3, c.spent)
         assert.is_true(c.all)
-        assert.equal(IC, c.next.spellID)
+        assert.equal(IC, c.next.spellID) -- filling the row for Nightfall
         assert.equal(4, c.next.rank)
         assert.equal(13, c.next.level)
         assert.is_false(c.next.now)
@@ -114,7 +124,8 @@ describe("Builds", function()
     end)
 
     it("shows a build's rotation at the player's level and what joins it later", function()
-        -- level 18 with 9 points elsewhere: the Demonology build's points come at 19, 20, 21
+        -- level 18 with 9 points elsewhere: the Demonology build's points come at 19, 20, 21, ...
+        -- (Demonic Brand changes the hints: it goes first; Sacrifice and Domination after)
         addon.learnUpTo(ns, W, 18)
         W.traits = { [IC] = 5, [NF] = 2, [SL] = 1, [SB] = 1 }
         addon.rescan(ns)
@@ -122,15 +133,16 @@ describe("Builds", function()
         local def = ns.Data.class
         local build = ns.TalentsForever.Decode("WARLOCK", "warlock/60/-113--12") -- Sacrifice, Domination, Brand 3/3
         local plan = ns.Planner.TalentsAt(def, build, W.traits, 18, 60)
-        assert.equal(19, plan[1].first)
-        assert.equal(21, plan[3].first) -- Demonic Brand's first point
+        local brand
+        for _, e in ipairs(plan) do if e.spellID == 1293695 then brand = e end end
+        assert.equal(19, brand.first) -- Demonic Brand's first point
         local profile = ns.Data.profiles.Warlock_Demonology_Leveling
         local _, s = addon.compute(ns, W)
         local later = ns.Planner.Upcoming(def, profile, s, 18, build)
         local at = {}
         for _, u in ipairs(later) do at[u.key] = u end
         -- Searing Pain is known from 18, but the rotation uses it only with Demonic Brand
-        assert.equal(21, at.searing_pain.level)
+        assert.equal(19, at.searing_pain.level)
         assert.equal("aoe", at.hellfire.kind)
         assert.equal(30, at.hellfire.level)
         assert.is_nil(at.siphon_life) -- this build does not take it
@@ -138,7 +150,7 @@ describe("Builds", function()
         ns.BuildsWindow.link = { code = "warlock/60/-113--12", lead = "Demonology", pts = { 0, 5, 0 }, ranks = build, source = "link" }
         local m = ns.BuildsWindow:Model()
         assert.equal("curse_of_agony", m.card.rotation[1].key)
-        assert.matches("spell5676 from 21", m.card.later)
+        assert.matches("spell5676 from 19", m.card.later)
         assert.matches("spell1949 from 30 %(3%+ enemies%)", m.card.later)
     end)
 

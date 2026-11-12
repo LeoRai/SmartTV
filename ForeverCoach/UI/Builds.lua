@@ -74,7 +74,7 @@ local function rotationOf(build, tab)
         local name = API.SpellName(u.id) or u.key
         if u.proc then name = string.format(L.B_PROC_NAME, name) end
         local item = string.format(L.B_UPCOMING_ITEM, name, u.level)
-        if u.kind then item = item .. string.format(" (%s)", L["B_KIND_" .. u.kind]) end
+        if u.kind and not u.proc then item = item .. string.format(" (%s)", L["B_KIND_" .. u.kind]) end
         later[#later + 1] = item
     end
     return now, later, profile
@@ -144,7 +144,11 @@ function BuildsWindow:Model()
     end
     local later, profile
     card.rotation, later, profile = rotationOf(sel, self.tab)
-    card.later = #later > 0 and string.format(L.B_UPCOMING, table.concat(later, ", ")) or L.B_UPCOMING_NONE
+    -- the first ones that join (two lines of the card at most)
+    local shown, more = {}, math.max(0, #later - 5)
+    for i = 1, math.min(5, #later) do shown[i] = later[i] end
+    card.later = #later > 0 and (string.format(L.B_UPCOMING, table.concat(shown, ", ")) ..
+        (more > 0 and string.format(L.B_UPCOMING_MORE, more) or "")) or L.B_UPCOMING_NONE
     card.approximate = profile and profile.approximate or nil
     card.first, card.second, card.compare = compareLines(sel)
     card.isChosen = m.chosen ~= nil and m.chosen.code == sel.code

@@ -15,8 +15,8 @@ ns.PlannerWindow = PlannerWindow
 local WIDTH, HEIGHT = 840, 660
 local LEFT_X, LEFT_W = 22, 480
 local RIGHT_X, RIGHT_W = 520, 298
-local NEED_ROWS, NEED_H, NEED_GAP = 7, 50, 7
-local NEW_LINES, TALENT_LINES, ROTATION, QUESTS, LEVELS = 2, 3, 5, 4, 6
+local NEED_ROWS, NEED_H, NEED_GAP = 6, 50, 7
+local TALENT_LINES, ROTATION, QUESTS, LEVELS, SITU_ROWS, SITU_ICONS = 3, 5, 4, 6, 6, 6
 
 local STATUS_COLOR = { trainer = C.gold, talent = C.proc, nobar = C.danger, level = C.muted, quest = C.teal }
 
@@ -154,24 +154,18 @@ function PlannerWindow:Model()
         m.needs[i] = needRow(item, level)
     end
 
-    -- Level preview
-    m.levels = Planner.PreviewLevels(level)
+    -- Level preview: now, the levels where this build's hints change, and 60.
+    m.levels = Planner.Milestones(def, profile, s, level, ranks, LEVELS)
     local at = self.at
     local offered = false
     for _, l in ipairs(m.levels) do if l == at then offered = true end end
     if not offered then at = m.levels[2] or m.levels[1] end
     m.at = at
-    m.newSpells, m.newRanks = {}, 0
-    for _, it in ipairs(Planner.NewAt(def, level, at, s.talents)) do
-        if it.first then
-            local name = spellName(it.id, it.key)
-            local n = note(it.key)
-            m.newSpells[#m.newSpells + 1] = n and (name .. " — " .. n) or name
-        else
-            m.newRanks = m.newRanks + 1
-        end
-    end
-    -- The chosen build's talents up to that level, and the rotation with them.
+    local fromTrainer = #Planner.NewAt(def, level, at, s.talents)
+    m.trainerAt = fromTrainer > 0 and (string.format(L.P_TRAINER_AT, at) .. ns.Count(fromTrainer, L.P_NEW_SPELLS)) or nil
+
+    -- The chosen build's talents up to that level: those that change the hints by name, the rest
+    -- as a number of points.
     local planned
     if ranks then
         local TF = ns.TalentsForever
@@ -179,17 +173,24 @@ function PlannerWindow:Model()
         local points
         planned, points = Planner.TalentsAt(def, ranks, ns.State.traits or {}, level, at, unspent)
         m.talents = {}
-        for i, e in ipairs(planned) do
-            m.talents[i] = e.now and string.format(L.P_TALENT_NOW, e.name, e.to, e.max)
-                or string.format(L.P_TALENT_AT, e.name, e.to, e.max, e.level)
+        local other = 0
+        for _, e in ipairs(planned) do
+            if e.key then
+                m.talents[#m.talents + 1] = e.now and string.format(L.P_TALENT_NOW, e.name, e.to, e.max)
+                    or string.format(L.P_TALENT_AT, e.name, e.to, e.max, e.first)
+            else
+                other = other + (e.to - e.from)
+            end
         end
+        if other > 0 then m.talents[#m.talents + 1] = ns.Count(other, L.P_TALENTS_OTHER) end
         m.talentPoints = points
         if points == 0 then m.talentNote = L.P_TALENTS_NONE end
     else
         m.talentNote = L.P_TALENTS_NO_BUILD
     end
-    -- The rotation now and at that level (distinct actions in priority order; the proc once the
-    -- talent that gives it is there). Those that are new at that level are marked.
+
+    -- The rotation on one target now and at that level (distinct actions in priority order; the
+    -- proc once the talent that gives it is there). New ones at that level are marked.
     local function rotation(atLevel, talents, actual)
         local out = {}
         for _, r in ipairs(Planner.Distinct(Planner.RotationAt(def, ns.Loop.current, atLevel, s, 8, talents, actual))) do
@@ -209,6 +210,28 @@ function PlannerWindow:Model()
     local before = {}
     for _, r in ipairs(m.rotationNow) do before[r.key] = true end
     for _, r in ipairs(m.rotation) do r.new = not before[r.key] end
+
+    -- What the build uses only in a situation at that level (finisher, low health, 3+ enemies...).
+    local usable = {}
+    for _, g in ipairs(Planner.Situational(def, profile, s, level, level, ranks)) do
+        for _, sp in ipairs(g.spells) do usable[g.kind .. sp.key] = true end
+    end
+    m.situational = {}
+    for _, g in ipairs(Planner.Situational(def, profile, s, level, at, ranks)) do
+        local row = { kind = g.kind, label = L["P_KIND_" .. g.kind], icons = {} }
+        for _, sp in ipairs(g.spells) do
+            row.icons[#row.icons + 1] = { key = sp.key, id = sp.id, texture = API.SpellTexture(sp.id),
+                                          new = not usable[g.kind .. sp.key] }
+        end
+        for _, x in ipairs(row.icons) do row.new = row.new or x.new end
+        m.situational[#m.situational + 1] = row
+    end
+    -- what is new at that level first (the kinds' own order inside)
+    for i, row in ipairs(m.situational) do row.order = i end
+    table.sort(m.situational, function(a, b)
+        if (a.new or false) ~= (b.new or false) then return a.new == true end
+        return a.order < b.order
+    end)
 
     -- Class quests
     m.quests = {}
@@ -273,8 +296,24 @@ function PlannerWindow:Create()
     f.needsNone = W.Font(f, 13, C.muted)
     f.needsNone:SetPoint("TOPLEFT", LEFT_X, -176)
 
+    -- Class quests: one compact block under the list
+    local qsTitle = W.Section(f, L.P_QUESTS)
+    qsTitle:SetPoint("TOPLEFT", LEFT_X, -528)
+    f.quests = {}
+    for i = 1, QUESTS do
+        local x, y = LEFT_X + ((i - 1) % 2) * 240, -552 - math.floor((i - 1) / 2) * 26
+        local r = {}
+        r.mark = W.Mark(f, 13)
+        r.mark:SetPoint("TOPLEFT", f, "TOPLEFT", x, y)
+        r.level = W.Font(f, 13, C.muted)
+        r.level:SetPoint("TOPLEFT", f, "TOPLEFT", x + 22, y)
+        r.name = W.Font(f, 13, C.text)
+        r.name:SetPoint("TOPLEFT", f, "TOPLEFT", x + 52, y)
+        f.quests[i] = r
+    end
+
     -- Level preview
-    local pv = W.Panel(f, RIGHT_W, 418)
+    local pv = W.Panel(f, RIGHT_W, 560)
     pv:SetPoint("TOPLEFT", RIGHT_X, -66)
     local pvTitle = W.Section(pv, L.P_PREVIEW)
     pvTitle:SetPoint("TOPLEFT", 18, -18)
@@ -289,37 +328,24 @@ function PlannerWindow:Create()
         b:SetScript("OnClick", function() if b.level then self:SetLevel(b.level) end end)
         pv.levels[i] = b
     end
-    pv.newTitle = W.Font(pv, 12, C.muted)
-    pv.newTitle:SetPoint("TOPLEFT", 18, -90)
-    pv.lines = {}
-    for i = 1, NEW_LINES + 1 do
-        local mark = W.Font(pv, 13, C.good)
-        mark:SetPoint("TOPLEFT", 18, -110 - (i - 1) * 22)
-        mark:SetText("+")
-        local text = W.Font(pv, 13, C.text)
-        text:SetPoint("TOPLEFT", 34, -110 - (i - 1) * 22)
-        text:SetWidth(RIGHT_W - 52)
-        text:SetWordWrap(false)
-        pv.lines[i] = { mark = mark, text = text }
-    end
     -- The chosen build's talents up to that level
     pv.talTitle = W.Font(pv, 12, C.muted)
-    pv.talTitle:SetPoint("TOPLEFT", 18, -184)
+    pv.talTitle:SetPoint("TOPLEFT", 18, -92)
     pv.talents = {}
     for i = 1, TALENT_LINES do
         local mark = W.Font(pv, 13, C.proc)
-        mark:SetPoint("TOPLEFT", 18, -204 - (i - 1) * 22)
+        mark:SetPoint("TOPLEFT", 18, -112 - (i - 1) * 22)
         mark:SetText("+")
         local text = W.Font(pv, 13, C.text)
-        text:SetPoint("TOPLEFT", 34, -204 - (i - 1) * 22)
+        text:SetPoint("TOPLEFT", 34, -112 - (i - 1) * 22)
         text:SetWidth(RIGHT_W - 52)
         text:SetWordWrap(false)
         pv.talents[i] = { mark = mark, text = text }
     end
     pv.talNote = W.Font(pv, 12, C.muted)
-    pv.talNote:SetPoint("TOPLEFT", 18, -204)
+    pv.talNote:SetPoint("TOPLEFT", 18, -112)
     pv.talNote:SetWidth(RIGHT_W - 36)
-    -- Two rows: the rotation now and at that level, new actions in a gold frame.
+    -- Two rows: the rotation on one target now and at that level, new actions in a gold frame.
     local function iconRow(y)
         local row = { icons = {}, arrows = {} }
         row.title = W.Font(pv, 12, C.muted)
@@ -336,31 +362,36 @@ function PlannerWindow:Create()
         end
         return row
     end
-    pv.rotNow = iconRow(-280)
-    pv.rotAt = iconRow(-344)
-    f.preview = pv
-
-    -- Class quests
-    local qs = W.Panel(f, RIGHT_W, 148)
-    qs:SetPoint("TOPLEFT", RIGHT_X, -498)
-    local qsTitle = W.Section(qs, L.P_QUESTS)
-    qsTitle:SetPoint("TOPLEFT", 18, -18)
-    qs.rows = {}
-    for i = 1, QUESTS do
-        local y = -46 - (i - 1) * 26
-        local r = {}
-        r.mark = W.Mark(qs, 13)
-        r.mark:SetPoint("TOPLEFT", 18, y)
-        r.level = W.Font(qs, 13, C.muted)
-        r.level:SetPoint("TOPLEFT", 40, y)
-        r.name = W.Font(qs, 13, C.text)
-        r.name:SetPoint("TOPLEFT", 78, y)
-        r.done = W.Font(qs, 12, C.good)
-        r.done:SetPoint("TOPRIGHT", qs, "TOPRIGHT", -16, y)
-        r.done:SetJustifyH("RIGHT")
-        qs.rows[i] = r
+    pv.rotNow = iconRow(-188)
+    pv.rotAt = iconRow(-252)
+    -- What comes into play in a situation at that level
+    pv.situTitle = W.Font(pv, 12, C.muted)
+    pv.situTitle:SetPoint("TOPLEFT", 18, -318)
+    pv.situ = {}
+    for i = 1, SITU_ROWS do
+        local y = -340 - (i - 1) * 32
+        local row = { icons = {} }
+        row.label = W.Font(pv, 12, C.text)
+        row.label:SetPoint("TOPLEFT", 18, y - 6)
+        row.label:SetWidth(100)
+        row.label:SetWordWrap(false)
+        for j = 1, SITU_ICONS do
+            local ic = W.Icon(pv, 24)
+            ic:SetPoint("TOPLEFT", 122 + (j - 1) * 28, y)
+            row.icons[j] = ic
+        end
+        pv.situ[i] = row
     end
-    f.quests = qs
+    pv.situNone = W.Font(pv, 12, C.muted)
+    pv.situNone:SetPoint("TOPLEFT", 18, -340)
+    pv.trainerAt = W.Font(pv, 12, C.muted)
+    pv.trainerAt:SetPoint("TOPLEFT", 18, -536)
+    pv.trainerAt:SetWidth(RIGHT_W - 36)
+    pv.help = W.Font(pv, 11, C.dim)
+    pv.help:SetPoint("BOTTOMLEFT", 18, 16)
+    pv.help:SetWidth(RIGHT_W - 36)
+    pv.help:SetText(L.P_ORDER_HELP)
+    f.preview = pv
 
     f:SetScript("OnShow", function() self:Draw() end)
     self.frame = f
@@ -412,16 +443,6 @@ function PlannerWindow:Draw()
             setColor(b.label, on and C.goldDark or C.text)
         end
     end
-    pv.newTitle:SetText(string.format(L.P_NEW_AT, m.at))
-    local lines = {}
-    for i = 1, math.min(NEW_LINES, #m.newSpells) do lines[#lines + 1] = m.newSpells[i] end
-    if m.newRanks > 0 then lines[#lines + 1] = ns.Count(m.newRanks, L.P_RANKS_MORE) end
-    if #lines == 0 then lines[1] = L.P_NOTHING_NEW end
-    for i, line in ipairs(pv.lines) do
-        line.mark:SetShown(lines[i] ~= nil and lines[i] ~= L.P_NOTHING_NEW)
-        line.text:SetShown(lines[i] ~= nil)
-        line.text:SetText(lines[i] or "")
-    end
     pv.talTitle:SetText(string.format(L.P_TALENTS_AT, m.at))
     local tal = m.talents or {}
     for i, line in ipairs(pv.talents) do
@@ -445,18 +466,31 @@ function PlannerWindow:Draw()
     drawRow(pv.rotNow, string.format(L.P_ROTATION_NOW, m.level), m.rotationNow)
     drawRow(pv.rotAt, string.format(L.P_ROTATION_AT, m.at), m.rotation)
 
-    for i, r in ipairs(f.quests.rows) do
+    pv.situTitle:SetText(string.format(L.P_SITUATIONAL_AT, m.at))
+    for i, row in ipairs(pv.situ) do
+        local g = m.situational[i]
+        row.label:SetShown(g ~= nil)
+        row.label:SetText(g and g.label or "")
+        for j, ic in ipairs(row.icons) do
+            local x = g and g.icons[j]
+            ic:SetShown(x ~= nil)
+            if x then ic.set(x.texture, x.new and C.gold or nil) end
+        end
+    end
+    pv.situNone:SetShown(#m.situational == 0)
+    pv.situNone:SetText(L.P_SITUATIONAL_NONE)
+    pv.trainerAt:SetText(m.trainerAt or "")
+
+    for i, r in ipairs(f.quests) do
         local q = m.quests[i]
         r.mark:SetShown(q ~= nil)
         r.level:SetShown(q ~= nil)
         r.name:SetShown(q ~= nil)
-        r.done:SetShown(q ~= nil and q.done)
         if q then
             r.mark:Set(q.done and "check" or "dot")
             r.level:SetText(tostring(q.level))
             r.name:SetText(q.name)
             setColor(r.name, q.done and C.muted or C.text)
-            r.done:SetText(L.P_QUEST_DONE)
         end
     end
 end
